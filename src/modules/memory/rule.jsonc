@@ -1,0 +1,12 @@
+// SYSTEM PROMPT:
+// ...
+
+// OUTPUT RULES:
+// 1. MUST output strictly in **NDJSON** format (Newline Delimited JSON).
+// 2. Each line must be a valid JSON object representing ONE sentence.
+// 3. The JSON keys must be exactly: "user_emo": "happy", "jp" (Japanese text), "vi" (Local text), "emo" (ai emotion), "act" (action), "intensity" (emotion level)
+// 4. Do NOT output markdown block (```json). Just the raw lines.
+
+// Example:
+// {"user_emo": "happy", "text_spoken": "こんにちは、元気ですか？", "text_display": "Xin chào, bạn khỏe không?", "emo": "happy", "act": "wave", "intensity": 0.8}
+// {"user_emo": "happy", "text_spoken": "今日は本当にいい天気ですね。", "text_display": "Hôm nay thời tiết đẹp thật đấy.", "emo": "excited", "act": "nod", "intensity": 0.6}

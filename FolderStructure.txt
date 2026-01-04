@@ -1,0 +1,73 @@
+ChinoKafuu/
+├── config.json                     # Global configuration
+├── requirements.txt
+├── README.md
+│
+├── models/                         # [MODELS STORAGE]
+│   ├── whisper/                    # Faster-Whisper models
+│   ├── rvc/                        # RVC checkpoints
+│   ├── tts/                        # StyleTTS2 models
+│   └── llm/                        # GGUF of LLaMA models
+│
+├── data/                           # [RUNTIME DATA]
+│   ├── memories/                   # Vector DB (long-term memory)
+│   ├── logs/                       # System & conversation logs
+│   └── recordings/                 # Optional audio recordings
+│
+├── src/
+│   ├── main.py                     # Application entry point
+│   ├── settings.py                 # Load config, env, constants
+│
+│   ├── core/                       # [SYSTEM KERNEL]
+│   │   ├── orchestrator.py         # Async pipeline & task scheduler
+│   │   ├── event_bus.py            # Pub/Sub event dispatcher
+│   │   ├── state.py                # Global speaking / listening state
+│   │   ├── interfaces.py           # Abstract interfaces
+│   │   └── interrupt_manager.py    # Handle loud-talk / user interrupt
+│
+│   ├── modules/                    # [FUNCTIONAL MODULES]
+│   │
+│   │   ├── audio/                  # AUDIO I/O
+│   │   │   ├── capture.py          # Microphone streaming
+│   │   │   ├── playback.py         # Speaker streaming ( Do after the end )
+│   │   │   └── audio_buffer.py     # Ring buffer for realtime audio
+│   │
+│   │   ├── asr/                    # SPEECH RECOGNITION
+│   │   │   ├── vad.py              # Silero VAD
+│   │   │   ├── stt.py              # Faster-Whisper STT 
+│   │   │   └── transcriber.py      # Faster-Whisper wrapper
+│   │
+│   │   ├── dialog/
+│   │   │   ├── llm_wrapper.py
+│   │   │   ├── prompt_builder.py
+│   │   │   ├── stream_parser.py
+│   │   │   └── response_router.py
+│   │
+│   │   ├── memory/                 # MEMORY SYSTEM
+│   │   │   ├── short_term.py       # Conversation buffer
+│   │   │   ├── mid_term.py         # Session memory
+│   │   │   └── long_term.py        # Vector DB (Chroma / FAISS)
+│   │
+│   │   ├── emotion/                # EMOTION SYSTEM
+│   │   │   ├── detector.py         # Emotion detection from text
+│   │   │   ├── state.py            # Current emotional state
+│   │   │   ├── decay.py            # Emotion decay over time
+│   │   │   └── mapper.py           # Emotion → voice / behavior map
+│   │
+│   │   ├── behavior/               # BEHAVIOR SYSTEM
+│   │   │   ├── persona.py          # Character persona definition
+│   │   │   ├── rules.py            # Hard behavior rules
+│   │   │   ├── policy.py           # Response policy (when / how to speak)
+│   │   │   └── filters.py          # Toxicity / repetition / safety
+│   │
+│   │   └── tts/                    # VOICE OUTPUT
+│   │       ├── synthesizer.py      # StyleTTS2 streaming
+│   │       ├── token_router.py     # Token → sentence routing
+│   │       ├── text_normalizer.py
+│   │       ├── voice_style.py      # Emotion → voice style
+│   │       └── rvc_converter.py    # RVC post-processing
+│
+│   └── utils/
+│       ├── logger.py               # Logging utilities
+│       ├── time_utils.py           # Timing & latency tools
+│       └── async_utils.py          # Async helpers

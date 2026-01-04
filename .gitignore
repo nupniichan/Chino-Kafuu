@@ -1,0 +1,62 @@
+# ===============================================
+# Environment Variables
+# ===============================================
+.env
+.env.local
+.env.*.local
+
+# Models
+models/*
+
+# Python & Virtual Environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+.venv/
+venv/
+ENV/
+env/
+.env.venv
+
+# Data & Persistence (Mount volumes)
+# Dialogue Core
+data/dialogue-core/chroma_db/
+data/dialogue-core/*.db
+data/dialogue-core/embeddings/
+
+# Build & Compiled Output
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+.vs/
+.vscode/settings.json
+*.user
+*.userprefs
+
+# Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.dockerignore
+docker-compose.override.yml
+*.log
+logs/
+*.out

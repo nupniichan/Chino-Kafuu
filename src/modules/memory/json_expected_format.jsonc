@@ -1,0 +1,41 @@
+{
+    "user": {
+        "message": "abc",
+        "emotion": "normal", // normal, excited, happy, bla bla get llm detect it
+        "lang": "en",
+
+        "context": {
+            "session_id": "random_timestamp",
+            "source": "mic", // text or auto
+            "interrupt": false // true or false
+        },
+
+        "meta": {
+            "timestamp": 0 // get current timestamp
+        }
+    },
+
+    "chino-kafuu": {
+        "response_id": "unique id", // get unique id
+        "stream_index": "0", // 0 -> n
+        "is_completed": false, // true or falce
+
+        "message":{
+            "text_spoken": "こんにちは、元気ですか?", // or "Hi, how are you" if local are en
+            "text_display": "Chào anh, anh khỏe hok", // local language
+            "phonemes": ""
+        },
+
+        "tts": {
+            "lang": "jp", // or "en"
+            "emotion": "happy", // normal, excited, happy, bla bla
+            "action": "do something", // nod, wave, shake_head bla bla
+            "intensity": 0.8 // emotion level (0 -> 1)
+        },
+
+        "meta": {
+            "latency_ms": 120,
+            "timestamp": 0 // get current timestamp
+        }
+    }
+}
