@@ -15,7 +15,7 @@ class LLMWrapper:
         self,
         model_path: str,
         n_ctx: int = 8192,
-        n_gpu_layers: int = -1,
+        n_gpu_layers: int = 20,
         temperature: float = 0.7,
         top_p: float = 0.9,
         max_tokens: int = 512
