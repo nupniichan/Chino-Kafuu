@@ -4,12 +4,11 @@ Provides fast, simple storage without external dependencies.
 """
 from typing import List, Dict
 import logging
-from modules.memory.storage import MemoryStorage
 
 logger = logging.getLogger(__name__)
 
 
-class MemoryCache(MemoryStorage):
+class MemoryCache:
     """In-memory cache storage using Python dict."""
     
     def __init__(self):

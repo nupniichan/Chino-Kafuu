@@ -3,13 +3,12 @@ Short-term memory: Conversation buffer storage with multiple backend support.
 Stores recent messages following the expected JSON format.
 Supports Redis and in-memory cache backends.
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 import uuid
 import json
 import logging
 
-from modules.memory.storage import MemoryStorage
 from modules.memory.cache import MemoryCache, RedisMemoryStorage
 
 logger = logging.getLogger(__name__)
@@ -40,12 +39,13 @@ class ShortTermMemory:
         self.max_size = max_size
         self.key_prefix = key_prefix
         self.current_session_id: Optional[str] = None
+        self.storage: Union[MemoryCache, RedisMemoryStorage]
         
         if storage_type == "cache":
-            self.storage: MemoryStorage = MemoryCache()
+            self.storage = MemoryCache()
             logger.info("Using MemoryCache backend")
         elif storage_type == "redis":
-            self.storage: MemoryStorage = RedisMemoryStorage(
+            self.storage = RedisMemoryStorage(
                 host=redis_host,
                 port=redis_port,
                 db=redis_db

@@ -4,12 +4,11 @@ Provides persistent storage using Redis server.
 """
 from typing import List
 import logging
-from modules.memory.storage import MemoryStorage
 
 logger = logging.getLogger(__name__)
 
 
-class RedisMemoryStorage(MemoryStorage):
+class RedisMemoryStorage:
     """Redis-based memory storage implementation."""
     
     def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0):
