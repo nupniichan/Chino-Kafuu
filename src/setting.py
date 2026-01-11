@@ -31,6 +31,7 @@ SHORT_TERM_MEMORY_SIZE: int = 20  # Maximum messages in conversation buffer
 SHORT_TERM_TOKEN_LIMIT: int = 8192  # Token limit before compression
 MEMORY_IMPORTANCE_THRESHOLD: float = 0.8  # Score threshold for long-term storage
 IDLE_TIMEOUT_SECONDS: int = 30  # Idle time before auto-trigger event
+MEMORY_CACHE: str = "cache"  # Storage backend: "redis" or "cache"
 
 # Redis settings
 REDIS_HOST: str = "localhost"

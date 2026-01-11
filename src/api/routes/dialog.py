@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     emotion: str = "normal"
     lang: str = "en"
     source: str = "text"
+    memory_cache: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -43,10 +44,20 @@ def set_orchestrator(orchestrator):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Process user message and return Chino's response."""
+    """Process user message and return Chino's response.
+    
+    Args:
+        request: Chat request with optional memory_backend ("redis" or "cache")
+    """
     
     if orchestrator_instance is None:
         raise HTTPException(status_code=503, detail="Dialog system not initialized")
+    
+    if request.memory_cache and request.memory_cache not in ["redis", "cache"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid memory_cache: {request.memory_cache}. Must be 'redis' or 'cache'"
+        )
     
     try:
         responses = await orchestrator_instance.process_user_message(

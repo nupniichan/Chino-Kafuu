@@ -332,6 +332,11 @@ class DialogOrchestrator:
             self.auto_trigger_task.cancel()
             logger.info("Auto-trigger task stopped")
     
+    @property
+    def memory(self) -> ShortTermMemory:
+        """Get short-term memory instance (for API compatibility)."""
+        return self.short_memory
+    
     def get_conversation_history(self, count: Optional[int] = None) -> List[Dict[str, Any]]:
         """Retrieve recent conversation from memory."""
         return self.short_memory.get_recent_messages(count)

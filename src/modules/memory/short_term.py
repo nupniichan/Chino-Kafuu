@@ -1,6 +1,7 @@
 """
-Short-term memory: Redis-based conversation buffer storage.
+Short-term memory: Conversation buffer storage with multiple backend support.
 Stores recent messages following the expected JSON format.
+Supports Redis and in-memory cache backends.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -8,52 +9,55 @@ import uuid
 import json
 import logging
 
+from modules.memory.storage import MemoryStorage
+from modules.memory.cache import MemoryCache, RedisMemoryStorage
+
 logger = logging.getLogger(__name__)
 
 
 class ShortTermMemory:
-    """Manages recent conversation history in Redis."""
+    """Manages recent conversation history with configurable storage backend."""
     
     def __init__(
         self,
         max_size: int = 20,
+        storage_type: str = "redis",
         redis_host: str = "localhost",
         redis_port: int = 6379,
         redis_db: int = 0,
         key_prefix: str = "chatbot:conversation"
     ):
-        """Initialize with Redis connection and buffer settings."""
+        """Initialize with storage backend and buffer settings.
+        
+        Args:
+            max_size: Maximum number of messages to keep
+            storage_type: Storage backend type ("redis" or "cache")
+            redis_host: Redis host (only used if storage_type="redis")
+            redis_port: Redis port (only used if storage_type="redis")
+            redis_db: Redis database (only used if storage_type="redis")
+            key_prefix: Prefix for storage keys
+        """
         self.max_size = max_size
         self.key_prefix = key_prefix
         self.current_session_id: Optional[str] = None
-        self.redis_client = None
         
-        self._connect_redis(redis_host, redis_port, redis_db)
-    
-    def _connect_redis(self, host: str, port: int, db: int):
-        """Connect to Redis server."""
-        try:
-            import redis
-            
-            self.redis_client = redis.Redis(
-                host=host,
-                port=port,
-                db=db,
-                decode_responses=True
+        if storage_type == "cache":
+            self.storage: MemoryStorage = MemoryCache()
+            logger.info("Using MemoryCache backend")
+        elif storage_type == "redis":
+            self.storage: MemoryStorage = RedisMemoryStorage(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db
             )
-            
-            self.redis_client.ping()
-            logger.info(f"Connected to Redis at {host}:{port}")
-            
-        except ImportError:
-            logger.error("redis package not installed. Install: pip install redis")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            logger.info("Using RedisMemoryStorage backend")
+        else:
+            raise ValueError(
+                f"Invalid storage_type: {storage_type}. Must be 'redis' or 'cache'"
+            )
     
     def _get_session_key(self) -> str:
-        """Get Redis key for current session."""
+        """Get storage key for current session."""
         session_id = self.current_session_id or "default"
         return f"{self.key_prefix}:{session_id}"
     
@@ -86,8 +90,9 @@ class ShortTermMemory:
         }
         
         key = self._get_session_key()
-        self.redis_client.rpush(key, json.dumps(entry, ensure_ascii=False))
-        self.redis_client.ltrim(key, -self.max_size, -1)
+        message_json = json.dumps(entry, ensure_ascii=False)
+        self.storage.add_message(key, message_json)
+        self.storage.trim(key, -self.max_size, -1)
         
         return entry
     
@@ -131,19 +136,20 @@ class ShortTermMemory:
         }
         
         key = self._get_session_key()
-        self.redis_client.rpush(key, json.dumps(entry, ensure_ascii=False))
-        self.redis_client.ltrim(key, -self.max_size, -1)
+        message_json = json.dumps(entry, ensure_ascii=False)
+        self.storage.add_message(key, message_json)
+        self.storage.trim(key, -self.max_size, -1)
         
         return entry
     
     def get_recent_messages(self, count: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Retrieve recent messages from Redis buffer."""
+        """Retrieve recent messages from storage buffer."""
         key = self._get_session_key()
         
         if count is None:
-            messages = self.redis_client.lrange(key, 0, -1)
+            messages = self.storage.get_messages(key, 0, -1)
         else:
-            messages = self.redis_client.lrange(key, -count, -1)
+            messages = self.storage.get_messages(key, -count, -1)
         
         return [json.loads(msg) for msg in messages]
     
@@ -172,7 +178,7 @@ class ShortTermMemory:
         """Clear all messages from buffer."""
         if self.current_session_id:
             key = self._get_session_key()
-            self.redis_client.delete(key)
+            self.storage.delete(key)
             logger.info(f"Cleared session: {self.current_session_id}")
         self.current_session_id = None
     
@@ -193,9 +199,9 @@ class ShortTermMemory:
         return self.get_recent_messages()
     
     def __del__(self):
-        """Cleanup Redis connection."""
-        if self.redis_client:
+        """Cleanup storage connection."""
+        if hasattr(self, 'storage') and hasattr(self.storage, 'close'):
             try:
-                self.redis_client.close()
+                self.storage.close()
             except:
                 pass

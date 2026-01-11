@@ -21,7 +21,11 @@ from setting import (
     LLM_TOP_P,
     LLM_MAX_TOKENS,
     SHORT_TERM_MEMORY_SIZE,
-    IDLE_TIMEOUT_SECONDS
+    IDLE_TIMEOUT_SECONDS,
+    MEMORY_CACHE,
+    REDIS_HOST,
+    REDIS_PORT,
+    REDIS_DB
 )
 
 logging.basicConfig(
@@ -46,7 +50,13 @@ async def test_dialog_flow():
         )
         
         logger.info("Initializing dialog orchestrator...")
-        memory = ShortTermMemory(max_size=SHORT_TERM_MEMORY_SIZE)
+        memory = ShortTermMemory(
+            max_size=SHORT_TERM_MEMORY_SIZE,
+            storage_type=MEMORY_CACHE,
+            redis_host=REDIS_HOST,
+            redis_port=REDIS_PORT,
+            redis_db=REDIS_DB
+        )
         orchestrator = DialogOrchestrator(
             llm_wrapper=llm,
             short_term_memory=memory,
@@ -84,11 +94,11 @@ async def test_dialog_flow():
         history = orchestrator.get_conversation_history()
         logger.info(f"Total messages in memory: {len(history)}")
         if history:
-            logger.info("--- Start of Redis Memory ---")
+            logger.info("--- Start of Memory ---")
             for i, entry in enumerate(history):
                 # Pretty print the JSON content
                 logger.info(f"[{i+1}]:\n{json.dumps(entry, indent=2, ensure_ascii=False)}")
-            logger.info("--- End of Redis Memory ---")
+            logger.info("--- End of Memory ---")
         
         logger.info("\n" + "="*60)
         logger.info("Testing Auto-Trigger (waiting for idle timeout...)")
