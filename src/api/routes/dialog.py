@@ -7,6 +7,29 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 
+from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
+from modules.dialog.orchestrator import DialogOrchestrator
+from modules.memory.short_term import ShortTermMemory
+from setting import (
+    LLM_MODE,
+    LLM_MODEL_PATH,
+    LLM_N_CTX,
+    LLM_N_GPU_LAYERS,
+    LLM_TEMPERATURE,
+    LLM_TOP_P,
+    LLM_MAX_TOKENS,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_TIMEOUT,
+    SHORT_TERM_MEMORY_SIZE,
+    IDLE_TIMEOUT_SECONDS,
+    MEMORY_CACHE,
+    REDIS_HOST,
+    REDIS_PORT,
+    REDIS_DB
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dialog", tags=["Dialog"])
@@ -19,6 +42,7 @@ class ChatRequest(BaseModel):
     lang: str = "en"
     source: str = "text"
     memory_cache: Optional[str] = None
+    llm_mode: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -33,13 +57,59 @@ class ConversationHistory(BaseModel):
     count: int
 
 
-orchestrator_instance = None
+orchestrator_instances: Dict[str, DialogOrchestrator] = {}
+
+
+def _create_llm_instance(mode: str):
+    """Create LLM instance based on mode."""
+    if mode == "local":
+        return LocalLLMWrapper(
+            model_path=LLM_MODEL_PATH,
+            n_ctx=LLM_N_CTX,
+            n_gpu_layers=LLM_N_GPU_LAYERS,
+            temperature=LLM_TEMPERATURE,
+            top_p=LLM_TOP_P,
+            max_tokens=LLM_MAX_TOKENS
+        )
+    elif mode == "openrouter":
+        return OpenRouterLLMWrapper(
+            api_key=OPENROUTER_API_KEY,
+            model=OPENROUTER_MODEL,
+            base_url=OPENROUTER_BASE_URL,
+            timeout=OPENROUTER_TIMEOUT,
+            temperature=LLM_TEMPERATURE,
+            top_p=LLM_TOP_P,
+            max_tokens=LLM_MAX_TOKENS
+        )
+    else:
+        raise ValueError(f"Invalid LLM_MODE: {mode}. Must be 'local' or 'openrouter'")
+
+
+def _get_orchestrator(mode: str) -> DialogOrchestrator:
+    """Get or create orchestrator instance for the specified mode."""
+    if mode not in orchestrator_instances:
+        llm = _create_llm_instance(mode)
+        memory = ShortTermMemory(
+            max_size=SHORT_TERM_MEMORY_SIZE,
+            storage_type=MEMORY_CACHE,
+            redis_host=REDIS_HOST,
+            redis_port=REDIS_PORT,
+            redis_db=REDIS_DB
+        )
+        orchestrator_instances[mode] = DialogOrchestrator(
+            llm_wrapper=llm,
+            short_term_memory=memory,
+            idle_timeout=IDLE_TIMEOUT_SECONDS
+        )
+        logger.info(f"Created orchestrator instance for mode: {mode}")
+    return orchestrator_instances[mode]
 
 
 def set_orchestrator(orchestrator):
-    """Set global orchestrator instance."""
-    global orchestrator_instance
-    orchestrator_instance = orchestrator
+    """Set global orchestrator instance (deprecated, use llm_mode in request instead)."""
+    global orchestrator_instances
+    default_mode = LLM_MODE or "openrouter"
+    orchestrator_instances[default_mode] = orchestrator
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -47,11 +117,16 @@ async def chat(request: ChatRequest):
     """Process user message and return Chino's response.
     
     Args:
-        request: Chat request with optional memory_backend ("redis" or "in-memory")
+        request: Chat request with optional llm_mode ("local" or "openrouter") and memory_cache ("redis" or "in-memory")
     """
     
-    if orchestrator_instance is None:
-        raise HTTPException(status_code=503, detail="Dialog system not initialized")
+    llm_mode = request.llm_mode or LLM_MODE or "openrouter"
+    
+    if llm_mode not in ["local", "openrouter"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid llm_mode: {llm_mode}. Must be 'local' or 'openrouter'"
+        )
     
     if request.memory_cache and request.memory_cache not in ["redis", "in-memory"]:
         raise HTTPException(
@@ -60,14 +135,16 @@ async def chat(request: ChatRequest):
         )
     
     try:
-        responses = await orchestrator_instance.process_user_message(
+        orchestrator = _get_orchestrator(llm_mode)
+        
+        responses = await orchestrator.process_user_message(
             user_message=request.message,
             user_emotion=request.emotion,
             user_lang=request.lang,
             source=request.source
         )
         
-        session_id = orchestrator_instance.memory.current_session_id or "default"
+        session_id = orchestrator.memory.current_session_id or "default"
         
         return ChatResponse(
             responses=responses,
@@ -80,14 +157,22 @@ async def chat(request: ChatRequest):
 
 
 @router.get("/history", response_model=ConversationHistory)
-async def get_history(count: Optional[int] = None):
-    """Get conversation history."""
+async def get_history(count: Optional[int] = None, llm_mode: Optional[str] = None):
+    """Get conversation history.
     
-    if orchestrator_instance is None:
-        raise HTTPException(status_code=503, detail="Dialog system not initialized")
+    Args:
+        count: Number of messages to retrieve
+        llm_mode: LLM mode to get history from ("local" or "openrouter")
+    """
+    
+    mode = llm_mode or LLM_MODE or "openrouter"
+    
+    if mode not in orchestrator_instances:
+        raise HTTPException(status_code=503, detail=f"Dialog system not initialized for mode: {mode}")
     
     try:
-        messages = orchestrator_instance.get_conversation_history(count)
+        orchestrator = orchestrator_instances[mode]
+        messages = orchestrator.get_conversation_history(count)
         
         return ConversationHistory(
             messages=messages,
@@ -100,14 +185,21 @@ async def get_history(count: Optional[int] = None):
 
 
 @router.post("/clear")
-async def clear_conversation():
-    """Clear conversation history."""
+async def clear_conversation(llm_mode: Optional[str] = None):
+    """Clear conversation history.
     
-    if orchestrator_instance is None:
-        raise HTTPException(status_code=503, detail="Dialog system not initialized")
+    Args:
+        llm_mode: LLM mode to clear history from ("local" or "openrouter")
+    """
+    
+    mode = llm_mode or LLM_MODE or "openrouter"
+    
+    if mode not in orchestrator_instances:
+        raise HTTPException(status_code=503, detail=f"Dialog system not initialized for mode: {mode}")
     
     try:
-        orchestrator_instance.clear_conversation()
+        orchestrator = orchestrator_instances[mode]
+        orchestrator.clear_conversation()
         return {"status": "success", "message": "Conversation cleared"}
         
     except Exception as e:
@@ -116,16 +208,29 @@ async def clear_conversation():
 
 
 @router.get("/status")
-async def get_status():
-    """Get dialog system status."""
+async def get_status(llm_mode: Optional[str] = None):
+    """Get dialog system status.
     
-    if orchestrator_instance is None:
-        return {"status": "not_initialized"}
+    Args:
+        llm_mode: LLM mode to get status from ("local" or "openrouter")
+    """
     
+    mode = llm_mode or LLM_MODE or "openrouter"
+    
+    if mode not in orchestrator_instances:
+        return {
+            "status": "not_initialized",
+            "mode": mode,
+            "available_modes": list(orchestrator_instances.keys())
+        }
+    
+    orchestrator = orchestrator_instances[mode]
     return {
         "status": "active",
-        "is_processing": orchestrator_instance.is_processing,
-        "messages_in_memory": len(orchestrator_instance.memory.buffer),
-        "idle_timeout": orchestrator_instance.idle_timeout,
-        "auto_trigger_active": orchestrator_instance.auto_trigger_task is not None
+        "mode": mode,
+        "is_processing": orchestrator.is_processing,
+        "messages_in_memory": len(orchestrator.memory.buffer),
+        "idle_timeout": orchestrator.idle_timeout,
+        "auto_trigger_active": orchestrator.auto_trigger_task is not None,
+        "available_modes": list(orchestrator_instances.keys())
     }
