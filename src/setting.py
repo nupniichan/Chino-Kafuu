@@ -1,13 +1,12 @@
-"""
-Application configuration settings.
-Contains paths, audio parameters, and API server settings.
-"""
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # FastAPI settings
-API_HOST: str = "127.0.0.1"
-API_PORT: int = 8000
-API_RELOAD: bool = True
+API_HOST: str = os.getenv("API_HOST") or ""
+API_PORT: int = int(os.getenv("API_PORT") or "0")
+API_RELOAD: bool = (os.getenv("API_RELOAD") or "False").lower() == "true"
 
 # Project paths
 PROJECT_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,34 +18,40 @@ DATA_ROOT: str = os.path.join(PROJECT_ROOT, "data")
 MID_TERM_DB_PATH: str = os.path.join(DATA_ROOT, "memories", "conversations.db")
 LONG_TERM_DB_PATH: str = os.path.join(DATA_ROOT, "memories", "vector_db")
 
+# OpenRouter settings
+OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY") or ""
+OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL") or ""
+OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL") or ""
+OPENROUTER_TIMEOUT: int = int(os.getenv("OPENROUTER_TIMEOUT") or "0")
+
 # LLM settings
-LLM_N_CTX: int = 8192  # Context window size
-LLM_N_GPU_LAYERS: int = 0  # GPU layers (0 = CPU only, increase for GPU)
-LLM_TEMPERATURE: float = 0.7  # Response creativity (0.0 - 1.0)
-LLM_TOP_P: float = 0.9  # Nucleus sampling
-LLM_MAX_TOKENS: int = 512  # Maximum response length
+LLM_MODE: str = os.getenv("LLM_MODE") or ""
+LLM_N_CTX: int = int(os.getenv("LLM_N_CTX") or "0")
+LLM_N_GPU_LAYERS: int = int(os.getenv("LLM_N_GPU_LAYERS") or "0")
+LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE") or "0")
+LLM_TOP_P: float = float(os.getenv("LLM_TOP_P") or "0")
+LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS") or "0")
 
 # Memory settings
-SHORT_TERM_MEMORY_SIZE: int = 20  # Maximum messages in conversation buffer
-SHORT_TERM_TOKEN_LIMIT: int = 8192  # Token limit before compression
-MEMORY_IMPORTANCE_THRESHOLD: float = 0.8  # Score threshold for long-term storage
-IDLE_TIMEOUT_SECONDS: int = 30  # Idle time before auto-trigger event
-MEMORY_CACHE: str = "cache"  # Storage backend: "redis" or "cache"
+SHORT_TERM_MEMORY_SIZE: int = int(os.getenv("SHORT_TERM_MEMORY_SIZE") or "0")
+SHORT_TERM_TOKEN_LIMIT: int = int(os.getenv("SHORT_TERM_TOKEN_LIMIT") or "0")
+MEMORY_IMPORTANCE_THRESHOLD: float = float(os.getenv("MEMORY_IMPORTANCE_THRESHOLD") or "0")
+IDLE_TIMEOUT_SECONDS: int = int(os.getenv("IDLE_TIMEOUT_SECONDS") or "0")
+MEMORY_CACHE: str = os.getenv("MEMORY_CACHE") or ""
 
 # Redis settings
-REDIS_HOST: str = "localhost"
-REDIS_PORT: int = 6379
-REDIS_DB: int = 0
+REDIS_HOST: str = os.getenv("REDIS_HOST") or ""
+REDIS_PORT: int = int(os.getenv("REDIS_PORT") or "0")
+REDIS_DB: int = int(os.getenv("REDIS_DB") or "0")
 
 # VAD (Voice Activity Detection) settings
-VAD_THRESHOLD: float = 0.5  # Speech probability threshold (0.0 - 1.0)
-SILENCE_CHUNKS_NEEDED: int = 5  # Number of silent chunks before considering speech ended
+VAD_THRESHOLD: float = float(os.getenv("VAD_THRESHOLD") or "0")
+SILENCE_CHUNKS_NEEDED: int = int(os.getenv("SILENCE_CHUNKS_NEEDED") or "0")
 
 # Audio settings
-SAMPLE_RATE: int = 16000  # Audio sample rate in Hz (required by Silero VAD)
-CHUNK_SIZE: int = 512  # Audio chunk size in samples (required by Silero VAD for 16kHz)
+SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE") or "0")
+CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE") or "0")
 
 # File upload limits
-MAX_UPLOAD_SIZE_MB: int = 50  # Maximum upload file size in megabytes
+MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB") or "0")
 ALLOWED_AUDIO_FORMATS: tuple = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
-

@@ -9,7 +9,8 @@ import uuid
 import json
 import logging
 
-from modules.memory.cache import MemoryCache, RedisMemoryStorage
+from modules.memory.cache.memory_cache import MemoryCache
+from modules.memory.cache.redis_storage import RedisMemoryStorage
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ShortTermMemory:
         
         Args:
             max_size: Maximum number of messages to keep
-            storage_type: Storage backend type ("redis" or "cache")
+            storage_type: Storage backend type ("redis", or "in-memory")
             redis_host: Redis host (only used if storage_type="redis")
             redis_port: Redis port (only used if storage_type="redis")
             redis_db: Redis database (only used if storage_type="redis")
@@ -41,7 +42,7 @@ class ShortTermMemory:
         self.current_session_id: Optional[str] = None
         self.storage: Union[MemoryCache, RedisMemoryStorage]
         
-        if storage_type == "cache":
+        if storage_type == "in-memory":
             self.storage = MemoryCache()
             logger.info("Using MemoryCache backend")
         elif storage_type == "redis":
@@ -53,7 +54,7 @@ class ShortTermMemory:
             logger.info("Using RedisMemoryStorage backend")
         else:
             raise ValueError(
-                f"Invalid storage_type: {storage_type}. Must be 'redis' or 'cache'"
+                f"Invalid storage_type: {storage_type}. Must be 'redis', 'cache', or 'in-memory'"
             )
     
     def _get_session_key(self) -> str:

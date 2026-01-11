@@ -47,16 +47,16 @@ async def chat(request: ChatRequest):
     """Process user message and return Chino's response.
     
     Args:
-        request: Chat request with optional memory_backend ("redis" or "cache")
+        request: Chat request with optional memory_backend ("redis" or "in-memory")
     """
     
     if orchestrator_instance is None:
         raise HTTPException(status_code=503, detail="Dialog system not initialized")
     
-    if request.memory_cache and request.memory_cache not in ["redis", "cache"]:
+    if request.memory_cache and request.memory_cache not in ["redis", "in-memory"]:
         raise HTTPException(
             status_code=400, 
-            detail=f"Invalid memory_cache: {request.memory_cache}. Must be 'redis' or 'cache'"
+            detail=f"Invalid memory_cache: {request.memory_cache}. Must be 'redis', 'cache', or 'in-memory'"
         )
     
     try:

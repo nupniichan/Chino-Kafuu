@@ -14,7 +14,7 @@ from modules.memory.long_term import LongTermMemory
 from modules.memory.token_counter import TokenCounter
 from modules.memory.summarizer import ConversationSummarizer
 from modules.dialog.prompt_builder import PromptBuilder
-from modules.dialog.llm_wrapper import LLMWrapper
+from modules.dialog.llm_wrapper import BaseLLMWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class DialogOrchestrator:
     
     def __init__(
         self,
-        llm_wrapper: LLMWrapper,
+        llm_wrapper: BaseLLMWrapper,
         short_term_memory: Optional[ShortTermMemory] = None,
         mid_term_memory: Optional[MidTermMemory] = None,
         long_term_memory: Optional[LongTermMemory] = None,

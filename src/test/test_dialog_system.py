@@ -10,16 +10,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.dialog.llm_wrapper import LLMWrapper
+from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
 from modules.dialog.orchestrator import DialogOrchestrator
 from modules.memory.short_term import ShortTermMemory
 from setting import (
-    LLM_MODEL_PATH, 
-    LLM_N_CTX, 
+    LLM_MODE,
+    LLM_MODEL_PATH,
+    LLM_N_CTX,
     LLM_N_GPU_LAYERS,
     LLM_TEMPERATURE,
     LLM_TOP_P,
     LLM_MAX_TOKENS,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_TIMEOUT,
     SHORT_TERM_MEMORY_SIZE,
     IDLE_TIMEOUT_SECONDS,
     MEMORY_CACHE,
@@ -35,12 +40,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def test_dialog_flow():
-    """Test complete dialog flow with memory and LLM."""
-    
-    try:
-        logger.info("Initializing LLM wrapper...")
-        llm = LLMWrapper(
+def create_llm_instance():
+    """Create LLM instance based on LLM_MODE configuration."""
+    if LLM_MODE == "local":
+        return LocalLLMWrapper(
             model_path=LLM_MODEL_PATH,
             n_ctx=LLM_N_CTX,
             n_gpu_layers=LLM_N_GPU_LAYERS,
@@ -48,6 +51,26 @@ async def test_dialog_flow():
             top_p=LLM_TOP_P,
             max_tokens=LLM_MAX_TOKENS
         )
+    elif LLM_MODE == "openrouter":
+        return OpenRouterLLMWrapper(
+            api_key=OPENROUTER_API_KEY,
+            model=OPENROUTER_MODEL,
+            base_url=OPENROUTER_BASE_URL,
+            timeout=OPENROUTER_TIMEOUT,
+            temperature=LLM_TEMPERATURE,
+            top_p=LLM_TOP_P,
+            max_tokens=LLM_MAX_TOKENS
+        )
+    else:
+        raise ValueError(f"Invalid LLM_MODE: {LLM_MODE}. Must be 'local' or 'openrouter'")
+
+
+async def test_dialog_flow():
+    """Test complete dialog flow with memory and LLM."""
+    
+    try:
+        logger.info("Initializing LLM wrapper...")
+        llm = create_llm_instance()
         
         logger.info("Initializing dialog orchestrator...")
         memory = ShortTermMemory(
@@ -139,12 +162,7 @@ async def test_simple_generation():
     try:
         logger.info("Testing simple LLM generation...")
         
-        llm = LLMWrapper(
-            model_path=LLM_MODEL_PATH,
-            n_ctx=8192,
-            temperature=0.7,
-            max_tokens=256
-        )
+        llm = create_llm_instance()
         
         messages = [
             {
