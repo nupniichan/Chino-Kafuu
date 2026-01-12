@@ -8,15 +8,17 @@ import uuid
 import json
 import os
 
+from setting import LONG_TERM_DB_PATH
+
 logger = logging.getLogger(__name__)
 
 
 class LongTermMemory:
     """Manages long-term semantic memory using ChromaDB."""
     
-    def __init__(self, persist_directory: str, collection_name: str = "memories"):
+    def __init__(self, persist_directory: Optional[str] = None, collection_name: str = "memories"):
         """Initialize with ChromaDB persistence directory."""
-        self.persist_directory = persist_directory
+        self.persist_directory = persist_directory or LONG_TERM_DB_PATH
         self.collection_name = collection_name
         self.client = None
         self.collection = None

@@ -9,15 +9,17 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import os
 
+from setting import MID_TERM_DB_PATH
+
 logger = logging.getLogger(__name__)
 
 
 class MidTermMemory:
     """Manages conversation summaries in SQLite database."""
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: Optional[str] = None):
         """Initialize with database path."""
-        self.db_path = db_path
+        self.db_path = db_path or MID_TERM_DB_PATH
         self._ensure_db_directory()
         self._init_database()
     
