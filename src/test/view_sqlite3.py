@@ -5,7 +5,6 @@ BASE_DIR = Path(__file__).resolve().parents[2]  # project/
 
 # Database paths
 CONVERSATIONS_DB = BASE_DIR / "data" / "memories" / "conversations.db"
-CHROMA_DB = BASE_DIR / "data" / "memories" / "vector_db" / "chroma.sqlite3"
 
 def view_database(db_path, db_name):
     """View tables and sample data from a database"""
@@ -57,7 +56,6 @@ def view_database(db_path, db_name):
 
 if __name__ == "__main__":
     view_database(CONVERSATIONS_DB, "conversations.db")
-    # view_database(CHROMA_DB, "chroma.sqlite3")
     print("\n" + "="*80)
     print("Done!")
     print("="*80)

@@ -1,6 +1,6 @@
 """
 Test memory compression with low token limit.
-Verifies that memory compresses to mid-term when token limit is reached.
+Verifies that memory compresses to long-term when token limit is reached.
 """
 import sys
 import os
@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from modules.dialog.orchestrator import DialogOrchestrator
 from modules.dialog.llm_wrapper import OpenRouterLLMWrapper
 from modules.memory.short_term import ShortTermMemory
-from modules.memory.mid_term import MidTermMemory
 from modules.memory.long_term import LongTermMemory
 from setting import (
     OPENROUTER_API_KEY,
@@ -40,13 +39,11 @@ async def test_memory_compression():
     )
     
     short_memory = ShortTermMemory(max_size=20, storage_type="in-memory")
-    mid_memory = MidTermMemory()
     long_memory = LongTermMemory()
     
     orchestrator = DialogOrchestrator(
         llm_wrapper=llm,
         short_term_memory=short_memory,
-        mid_term_memory=mid_memory,
         long_term_memory=long_memory,
         token_limit=SHORT_TERM_TOKEN_LIMIT,
         importance_threshold=0.8
@@ -102,13 +99,13 @@ async def test_memory_compression():
     
     orchestrator.log_memory_stats()
     
-    # Check mid-term memory
-    mid_summaries = mid_memory.get_recent_summaries(limit=10)
-    print(f"\n📚 Mid-term summaries created: {len(mid_summaries)}")
+    # Check long-term memory
+    long_summaries = long_memory.get_recent_summaries(limit=10)
+    print(f"\n📚 Long-term summaries created: {len(long_summaries)}")
     
-    if mid_summaries:
+    if long_summaries:
         print("\nSummaries:")
-        for summary in mid_summaries:
+        for summary in long_summaries:
             print(f"  - ID {summary['id']}: {summary['summary'][:80]}...")
             print(f"    Importance: {summary['importance_score']:.2f}, Tokens: {summary['token_count']}")
     

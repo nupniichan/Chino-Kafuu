@@ -15,8 +15,7 @@ LLM_MODEL_PATH: str = os.path.join(PROJECT_ROOT, "models", "llm", "Meta-Llama-3.
 
 # Data paths
 DATA_ROOT: str = os.path.join(PROJECT_ROOT, "data")
-MID_TERM_DB_PATH: str = os.path.join(DATA_ROOT, "memories", "conversations.db")
-LONG_TERM_DB_PATH: str = os.path.join(DATA_ROOT, "memories", "vector_db")
+LONG_TERM_DB_PATH: str = os.path.join(DATA_ROOT, "memories", "conversations.db")
 
 # OpenRouter settings
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY") or ""

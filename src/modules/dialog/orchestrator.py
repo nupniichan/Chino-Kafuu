@@ -9,7 +9,6 @@ from datetime import datetime
 import time
 
 from modules.memory.short_term import ShortTermMemory
-from modules.memory.mid_term import MidTermMemory
 from modules.memory.long_term import LongTermMemory
 from modules.memory.summarizer import ConversationSummarizer
 from modules.dialog.prompt_builder import PromptBuilder
@@ -25,7 +24,6 @@ class DialogOrchestrator:
         self,
         llm_wrapper: BaseLLMWrapper,
         short_term_memory: Optional[ShortTermMemory] = None,
-        mid_term_memory: Optional[MidTermMemory] = None,
         long_term_memory: Optional[LongTermMemory] = None,
         idle_timeout: int = 30,
         token_limit: int = 8000,
@@ -34,7 +32,6 @@ class DialogOrchestrator:
         """Initialize with LLM, all memory layers, and settings."""
         self.llm = llm_wrapper
         self.short_memory = short_term_memory or ShortTermMemory()
-        self.mid_memory = mid_term_memory
         self.long_memory = long_term_memory
         
         self.summarizer = ConversationSummarizer(llm_wrapper)
@@ -49,13 +46,13 @@ class DialogOrchestrator:
         self.auto_trigger_task: Optional[asyncio.Task] = None
     
     
-    async def _retrieve_mid_term_summaries(self) -> str:
-        """Retrieve recent mid-term conversation summaries."""
-        if not self.mid_memory:
+    async def _retrieve_long_term_summaries(self) -> str:
+        """Retrieve recent long-term conversation summaries."""
+        if not self.long_memory:
             return ""
         
         try:
-            summaries = self.mid_memory.get_recent_summaries(limit=3)
+            summaries = self.long_memory.get_recent_summaries(limit=3)
             
             if summaries:
                 summary_text = "\n".join([
@@ -64,27 +61,7 @@ class DialogOrchestrator:
                 return f"Recent conversation summaries:\n{summary_text}"
             
         except Exception as e:
-            logger.error(f"Failed to retrieve mid-term summaries: {e}")
-        
-        return ""
-    
-    async def _retrieve_relevant_memories(self, user_message: str) -> str:
-        """Retrieve relevant memories from long-term storage."""
-        if not self.long_memory:
-            return ""
-        
-        try:
-            result = self.long_memory.search_memories(user_message, n_results=3)
-            memories = result.get('memories', [])
-            
-            if memories:
-                memory_text = "\n".join([
-                    f"- {mem['content']}" for mem in memories
-                ])
-                return f"Relevant past memories:\n{memory_text}"
-            
-        except Exception as e:
-            logger.error(f"Failed to retrieve memories: {e}")
+            logger.error(f"Failed to retrieve long-term summaries: {e}")
         
         return ""
     
@@ -98,12 +75,12 @@ class DialogOrchestrator:
         # Compress when message count reaches a threshold (e.g., 50 messages)
         if message_count >= 50:
             logger.info(f"Message limit reached ({message_count} messages), compressing memory")
-            await self._compress_to_mid_term(recent_messages)
+            await self._compress_to_long_term(recent_messages)
     
-    async def _compress_to_mid_term(self, messages: List[Dict[str, Any]]):
-        """Compress short-term to mid-term memory via summarization."""
-        if not self.mid_memory:
-            logger.warning("Mid-term memory not initialized, skipping compression")
+    async def _compress_to_long_term(self, messages: List[Dict[str, Any]]):
+        """Compress short-term to long-term memory via summarization."""
+        if not self.long_memory:
+            logger.warning("Long-term memory not initialized, skipping compression")
             return
         
         try:
@@ -113,7 +90,7 @@ class DialogOrchestrator:
             message_count = len(messages)
             session_id = self.short_memory.current_session_id or "default"
             
-            summary_id = self.mid_memory.add_summary(
+            summary_id = self.long_memory.add_summary(
                 session_id=session_id,
                 summary=summary,
                 original_messages=messages,
@@ -125,40 +102,13 @@ class DialogOrchestrator:
                 }
             )
             
-            logger.info(f"Compressed {message_count} messages to mid-term (ID: {summary_id}, score: {importance_score:.2f})")
-            
-            if importance_score >= self.importance_threshold:
-                await self._promote_to_long_term(summary_id, summary, importance_score)
+            logger.info(f"Compressed {message_count} messages to long-term (ID: {summary_id}, score: {importance_score:.2f})")
             
             self.short_memory.clear()
             logger.info("Short-term memory cleared after compression")
             
         except Exception as e:
             logger.error(f"Failed to compress memory: {e}")
-    
-    async def _promote_to_long_term(self, summary_id: int, summary: str, score: float):
-        """Promote high-importance summary to long-term memory."""
-        if not self.long_memory:
-            logger.warning("Long-term memory not initialized, skipping promotion")
-            return
-        
-        try:
-            memory_id = f"mid_{summary_id}"
-            self.long_memory.add_memory(
-                content=summary,
-                metadata={
-                    "source": "mid_term",
-                    "summary_id": summary_id,
-                    "importance_score": score,
-                    "timestamp": int(time.time() * 1000)
-                },
-                memory_id=memory_id
-            )
-            
-            logger.info(f"Promoted summary {summary_id} to long-term memory (score: {score:.2f})")
-            
-        except Exception as e:
-            logger.error(f"Failed to promote to long-term: {e}")
     
     async def process_user_message(
         self,
@@ -173,8 +123,7 @@ class DialogOrchestrator:
         self.last_interaction_time = time.time()
         
         try:
-            mid_term_summaries = await self._retrieve_mid_term_summaries()
-            relevant_memories = await self._retrieve_relevant_memories(user_message)
+            long_term_summaries = await self._retrieve_long_term_summaries()
             
             self.short_memory.add_user_message(
                 message=user_message,
@@ -194,18 +143,12 @@ class DialogOrchestrator:
             )
             
             insert_position = 1
-            if mid_term_summaries:
+            if long_term_summaries:
                 messages.insert(insert_position, {
                     "role": "system",
-                    "content": mid_term_summaries
+                    "content": long_term_summaries
                 })
                 insert_position += 1
-            
-            if relevant_memories:
-                messages.insert(insert_position, {
-                    "role": "system",
-                    "content": relevant_memories
-                })
             
             start_time = time.time()
             response_sentences = self.llm.generate_and_parse(messages)
@@ -251,7 +194,7 @@ class DialogOrchestrator:
         try:
             logger.info("Auto-trigger: Initiating conversation")
             
-            mid_term_summaries = await self._retrieve_mid_term_summaries()
+            long_term_summaries = await self._retrieve_long_term_summaries()
             
             conversation_history = self.short_memory.get_conversation_context()
             
@@ -261,10 +204,10 @@ class DialogOrchestrator:
                 is_auto_trigger=True
             )
             
-            if mid_term_summaries:
+            if long_term_summaries:
                 messages.insert(1, {
                     "role": "system",
-                    "content": mid_term_summaries
+                    "content": long_term_summaries
                 })
             
             start_time = time.time()
@@ -356,20 +299,12 @@ class DialogOrchestrator:
             }
         }
         
-        if self.mid_memory:
-            try:
-                recent_summaries = self.mid_memory.get_recent_summaries(limit=5)
-                stats["mid_term"] = {
-                    "recent_summaries": len(recent_summaries),
-                    "total_summaries": len(self.mid_memory.get_recent_summaries(limit=1000))
-                }
-            except:
-                stats["mid_term"] = {"status": "error"}
-        
         if self.long_memory:
             try:
+                recent_summaries = self.long_memory.get_recent_summaries(limit=5)
                 stats["long_term"] = {
-                    "total_memories": self.long_memory.get_memory_count()
+                    "recent_summaries": len(recent_summaries),
+                    "total_summaries": len(self.long_memory.get_recent_summaries(limit=1000))
                 }
             except:
                 stats["long_term"] = {"status": "error"}
@@ -390,12 +325,8 @@ class DialogOrchestrator:
         logger.info("="*60)
         logger.info(f"Short-term: {short_term.get('messages', 0)} messages, {short_term.get('tokens', 0)} tokens")
         
-        if "mid_term" in stats and "status" not in stats["mid_term"]:
-            mid_term = stats["mid_term"]
-            logger.info(f"Mid-term: {mid_term.get('total_summaries', 0)} summaries (recent: {mid_term.get('recent_summaries', 0)})")
-        
         if "long_term" in stats and "status" not in stats["long_term"]:
             long_term = stats["long_term"]
-            logger.info(f"Long-term: {long_term.get('total_memories', 0)} memories")
+            logger.info(f"Long-term: {long_term.get('total_summaries', 0)} summaries (recent: {long_term.get('recent_summaries', 0)})")
         
         logger.info("="*60 + "\n")
