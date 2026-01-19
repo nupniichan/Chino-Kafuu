@@ -2,8 +2,8 @@
 Prompt builder: Constructs system and user prompts with memory context.
 Builds prompts based on conversation history and character rules.
 """
-from typing import List, Dict, Any, Optional
-import os
+from pathlib import Path
+from typing import List, Dict, Optional
 
 
 class PromptBuilder:
@@ -12,11 +12,14 @@ class PromptBuilder:
     def __init__(self, prompt_file: Optional[str] = None):
         """Initialize with optional custom prompt file path."""
         if prompt_file is None:
-            prompt_file = os.path.join(
-                os.path.dirname(__file__), 
-                "prompt.txt"
+            prompt_file = (
+                Path(__file__).resolve().parents[2]
+                / "prompts"
+                / "dialog"
+                / "prompt.txt"
             )
-        self.prompt_file = prompt_file
+
+        self.prompt_file = Path(prompt_file)
         self.prompt = self._load_prompt()
     
     def _load_prompt(self) -> str:

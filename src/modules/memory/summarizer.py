@@ -3,7 +3,7 @@ Summarizer: Compresses conversation history using small LLM.
 Used when short-term memory exceeds token limit.
 """
 import logging
-import os
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -17,11 +17,13 @@ class ConversationSummarizer:
         self.llm = llm_wrapper
         
         if prompt_file is None:
-            prompt_file = os.path.join(
-                os.path.dirname(__file__),
-                "summary_prompt.txt"
+            prompt_file = (
+                Path(__file__).resolve().parents[2]
+                / "prompts"
+                / "memory"
+                / "summary_prompt.txt"
             )
-        self.prompt_file = prompt_file
+        self.prompt_file = Path(prompt_file)
         self.system_prompt = self._load_prompt()
     
     def _load_prompt(self) -> str:
