@@ -11,7 +11,6 @@ import time
 from modules.memory.short_term import ShortTermMemory
 from modules.memory.mid_term import MidTermMemory
 from modules.memory.long_term import LongTermMemory
-from modules.memory.token_counter import TokenCounter
 from modules.memory.summarizer import ConversationSummarizer
 from modules.dialog.prompt_builder import PromptBuilder
 from modules.dialog.llm_wrapper import BaseLLMWrapper
@@ -38,7 +37,6 @@ class DialogOrchestrator:
         self.mid_memory = mid_term_memory
         self.long_memory = long_term_memory
         
-        self.token_counter = TokenCounter()
         self.summarizer = ConversationSummarizer(llm_wrapper)
         self.prompt_builder = PromptBuilder()
         
@@ -93,12 +91,13 @@ class DialogOrchestrator:
     async def _check_and_compress_memory(self):
         """Check short-term memory size and compress if needed."""
         recent_messages = self.short_memory.get_recent_messages()
-        token_count = self.token_counter.count_messages_tokens(recent_messages)
+        message_count = len(recent_messages)
         
-        logger.debug(f"Short-term memory: {token_count} tokens, {len(recent_messages)} messages")
+        logger.info(f"Memory Stats - Short-term: {message_count} messages")
         
-        if token_count >= self.token_limit:
-            logger.info(f"Token limit reached ({token_count}/{self.token_limit}), compressing memory")
+        # Compress when message count reaches a threshold (e.g., 50 messages)
+        if message_count >= 50:
+            logger.info(f"Message limit reached ({message_count} messages), compressing memory")
             await self._compress_to_mid_term(recent_messages)
     
     async def _compress_to_mid_term(self, messages: List[Dict[str, Any]]):
@@ -111,27 +110,27 @@ class DialogOrchestrator:
             summary = self.summarizer.summarize_conversation(messages)
             importance_score = self.summarizer.calculate_importance_score(messages, summary)
             
-            token_count = self.token_counter.count_messages_tokens(messages)
+            message_count = len(messages)
             session_id = self.short_memory.current_session_id or "default"
             
             summary_id = self.mid_memory.add_summary(
                 session_id=session_id,
                 summary=summary,
                 original_messages=messages,
-                token_count=token_count,
+                token_count=0,  # No longer tracking tokens
                 importance_score=importance_score,
                 metadata={
                     "compressed_at": int(time.time() * 1000),
-                    "message_count": len(messages)
+                    "message_count": message_count
                 }
             )
             
-            logger.info(f"Compressed {len(messages)} messages to mid-term (ID: {summary_id}, score: {importance_score:.2f})")
+            logger.info(f"Compressed {message_count} messages to mid-term (ID: {summary_id}, score: {importance_score:.2f})")
             
             if importance_score >= self.importance_threshold:
                 await self._promote_to_long_term(summary_id, summary, importance_score)
             
-            self.short_memory.buffer.clear()
+            self.short_memory.clear()
             logger.info("Short-term memory cleared after compression")
             
         except Exception as e:
@@ -230,6 +229,8 @@ class DialogOrchestrator:
                 saved_responses.append(response_entry)
             
             asyncio.create_task(self._check_and_compress_memory())
+            
+            self.log_memory_stats()
             
             return saved_responses
             
@@ -351,10 +352,7 @@ class DialogOrchestrator:
         """Get statistics about all memory layers."""
         stats = {
             "short_term": {
-                "messages": len(self.short_memory.buffer),
-                "tokens": self.token_counter.count_messages_tokens(
-                    self.short_memory.get_recent_messages()
-                )
+                "messages": len(self.short_memory.buffer)
             }
         }
         
@@ -377,3 +375,27 @@ class DialogOrchestrator:
                 stats["long_term"] = {"status": "error"}
         
         return stats
+    
+    def log_memory_stats(self, event_type: str = "message_processed"):
+        """Log detailed memory statistics including total tokens.
+        
+        Args:
+            event_type: Type of event triggering the log
+        """
+        stats = self.get_memory_stats()
+        short_term = stats.get("short_term", {})
+        
+        logger.info("\n" + "="*60)
+        logger.info("MEMORY STATISTICS")
+        logger.info("="*60)
+        logger.info(f"Short-term: {short_term.get('messages', 0)} messages, {short_term.get('tokens', 0)} tokens")
+        
+        if "mid_term" in stats and "status" not in stats["mid_term"]:
+            mid_term = stats["mid_term"]
+            logger.info(f"Mid-term: {mid_term.get('total_summaries', 0)} summaries (recent: {mid_term.get('recent_summaries', 0)})")
+        
+        if "long_term" in stats and "status" not in stats["long_term"]:
+            long_term = stats["long_term"]
+            logger.info(f"Long-term: {long_term.get('total_memories', 0)} memories")
+        
+        logger.info("="*60 + "\n")

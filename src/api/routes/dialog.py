@@ -10,6 +10,8 @@ import logging
 from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
 from modules.dialog.orchestrator import DialogOrchestrator
 from modules.memory.short_term import ShortTermMemory
+from modules.memory.mid_term import MidTermMemory
+from modules.memory.long_term import LongTermMemory
 from setting import (
     LLM_MODE,
     LLM_MODEL_PATH,
@@ -23,6 +25,8 @@ from setting import (
     OPENROUTER_BASE_URL,
     OPENROUTER_TIMEOUT,
     SHORT_TERM_MEMORY_SIZE,
+    SHORT_TERM_TOKEN_LIMIT,
+    MEMORY_IMPORTANCE_THRESHOLD,
     IDLE_TIMEOUT_SECONDS,
     MEMORY_CACHE,
     REDIS_HOST,
@@ -89,27 +93,29 @@ def _get_orchestrator(mode: str) -> DialogOrchestrator:
     """Get or create orchestrator instance for the specified mode."""
     if mode not in orchestrator_instances:
         llm = _create_llm_instance(mode)
-        memory = ShortTermMemory(
+        short_memory = ShortTermMemory(
             max_size=SHORT_TERM_MEMORY_SIZE,
             storage_type=MEMORY_CACHE,
             redis_host=REDIS_HOST,
             redis_port=REDIS_PORT,
             redis_db=REDIS_DB
         )
+        
+        mid_memory = MidTermMemory()
+        long_memory = LongTermMemory()
+        
         orchestrator_instances[mode] = DialogOrchestrator(
             llm_wrapper=llm,
-            short_term_memory=memory,
-            idle_timeout=IDLE_TIMEOUT_SECONDS
+            short_term_memory=short_memory,
+            mid_term_memory=mid_memory,
+            long_term_memory=long_memory,
+            idle_timeout=IDLE_TIMEOUT_SECONDS,
+            token_limit=SHORT_TERM_TOKEN_LIMIT,
+            importance_threshold=MEMORY_IMPORTANCE_THRESHOLD
         )
         logger.info(f"Created orchestrator instance for mode: {mode}")
+        logger.info(f"Token limit: {SHORT_TERM_TOKEN_LIMIT}, Importance threshold: {MEMORY_IMPORTANCE_THRESHOLD}")
     return orchestrator_instances[mode]
-
-
-def set_orchestrator(orchestrator):
-    """Set global orchestrator instance (deprecated, use llm_mode in request instead)."""
-    global orchestrator_instances
-    default_mode = LLM_MODE or "openrouter"
-    orchestrator_instances[default_mode] = orchestrator
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -144,7 +150,7 @@ async def chat(request: ChatRequest):
             source=request.source
         )
         
-        session_id = orchestrator.memory.current_session_id or "default"
+        session_id = orchestrator.short_memory.current_session_id or "default"
         
         return ChatResponse(
             responses=responses,
@@ -229,8 +235,32 @@ async def get_status(llm_mode: Optional[str] = None):
         "status": "active",
         "mode": mode,
         "is_processing": orchestrator.is_processing,
-        "messages_in_memory": len(orchestrator.memory.buffer),
+        "messages_in_memory": len(orchestrator.short_memory.buffer),
         "idle_timeout": orchestrator.idle_timeout,
         "auto_trigger_active": orchestrator.auto_trigger_task is not None,
         "available_modes": list(orchestrator_instances.keys())
     }
+
+
+@router.get("/memory_stats")
+async def get_memory_stats(llm_mode: Optional[str] = None):
+    """Get detailed memory statistics including token usage.
+    
+    Args:
+        llm_mode: LLM mode to get stats from ("local" or "openrouter")
+    """
+    
+    mode = llm_mode or LLM_MODE or "openrouter"
+    
+    if mode not in orchestrator_instances:
+        raise HTTPException(status_code=503, detail=f"Dialog system not initialized for mode: {mode}")
+    
+    try:
+        orchestrator = orchestrator_instances[mode]
+        stats = orchestrator.get_memory_stats()
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Memory stats error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")

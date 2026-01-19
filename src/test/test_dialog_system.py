@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
 from modules.dialog.orchestrator import DialogOrchestrator
 from modules.memory.short_term import ShortTermMemory
+from modules.memory.mid_term import MidTermMemory
+from modules.memory.long_term import LongTermMemory
 from setting import (
     LLM_MODE,
     LLM_MODEL_PATH,
@@ -26,6 +28,8 @@ from setting import (
     OPENROUTER_BASE_URL,
     OPENROUTER_TIMEOUT,
     SHORT_TERM_MEMORY_SIZE,
+    SHORT_TERM_TOKEN_LIMIT,
+    MEMORY_IMPORTANCE_THRESHOLD,
     IDLE_TIMEOUT_SECONDS,
     MEMORY_CACHE,
     REDIS_HOST,
@@ -73,18 +77,27 @@ async def test_dialog_flow():
         llm = create_llm_instance()
         
         logger.info("Initializing dialog orchestrator...")
-        memory = ShortTermMemory(
+        
+        short_memory = ShortTermMemory(
             max_size=SHORT_TERM_MEMORY_SIZE,
             storage_type=MEMORY_CACHE,
             redis_host=REDIS_HOST,
             redis_port=REDIS_PORT,
             redis_db=REDIS_DB
         )
+        mid_memory = MidTermMemory()
+        long_memory = LongTermMemory()
+        
         orchestrator = DialogOrchestrator(
             llm_wrapper=llm,
-            short_term_memory=memory,
-            idle_timeout=IDLE_TIMEOUT_SECONDS
+            short_term_memory=short_memory,
+            mid_term_memory=mid_memory,
+            long_term_memory=long_memory,
+            idle_timeout=IDLE_TIMEOUT_SECONDS,
+            token_limit=SHORT_TERM_TOKEN_LIMIT,
+            importance_threshold=MEMORY_IMPORTANCE_THRESHOLD
         )
+        logger.info(f"Token limit: {SHORT_TERM_TOKEN_LIMIT}, Importance threshold: {MEMORY_IMPORTANCE_THRESHOLD}")
         
         logger.info("\n" + "="*60)
         logger.info("Testing User Message Processing")
