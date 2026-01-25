@@ -18,10 +18,11 @@ from setting import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/stt", tags=["stt"])
+router = APIRouter(prefix="/stt", tags=["STT"])
 
 _transcriber = None
 _transcriber_lock = threading.Lock()
+
 
 def get_transcriber() -> Transcriber:
     """Get or create the transcriber instance (thread-safe singleton)."""
@@ -38,18 +39,9 @@ def get_transcriber() -> Transcriber:
                 logger.info("Transcriber initialized successfully")
     return _transcriber
 
+
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
-    """
-    Transcribe an audio file to text.
-    
-    Args:
-        file: Audio file (WAV, MP3, FLAC, OGG, M4A, AAC)
-              Maximum size: 50MB
-    
-    Returns:
-        JSON response with transcription result
-    """
     try:
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_AUDIO_FORMATS:
@@ -95,3 +87,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
             status_code=400,
             detail=f"Error transcribing audio: {str(e)}"
         )
+
+
+@router.get("/status")
+async def get_stt_status():
+    try:
+        transcriber = get_transcriber()
+        return {
+            "status": "ready",
+            "model_path": STT_MODEL_PATH,
+            "sample_rate": SAMPLE_RATE,
+            "vad_threshold": VAD_THRESHOLD
+        }
+    except Exception as e:
+        logger.error(f"STT status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -5,12 +5,9 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/base", tags=["Base"])
 
+
 @router.get("/health")
 async def health_check():
-    """
-    Check if the system is running and all modules are available.
-    Verifies that STT and VAD modules can be imported successfully.
-    """
     try:
         from modules.asr.transcriber import Transcriber
         from modules.asr.stt import STT
@@ -40,3 +37,8 @@ async def health_check():
                 "message": f"Module import failed: {str(e)}"
             }
         )
+
+
+@router.get("/ping")
+async def ping():
+    return {"status": "ok", "message": "pong"}

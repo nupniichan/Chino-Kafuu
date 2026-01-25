@@ -1,6 +1,5 @@
 """
 Dialog API route: Exposes dialog system via REST API.
-Provides endpoints for chat and conversation management.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -39,7 +38,6 @@ router = APIRouter(prefix="/dialog", tags=["Dialog"])
 
 
 class ChatRequest(BaseModel):
-    """Request model for chat endpoint."""
     message: str
     emotion: str = "normal"
     lang: str = "en"
@@ -49,13 +47,11 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Response model for chat endpoint."""
     responses: List[Dict[str, Any]]
     conversation_id: str
 
 
 class ConversationHistory(BaseModel):
-    """Response model for conversation history."""
     messages: List[Dict[str, Any]]
     count: int
 
@@ -64,7 +60,6 @@ orchestrator_instances: Dict[str, DialogOrchestrator] = {}
 
 
 def _create_llm_instance(mode: str):
-    """Create LLM instance based on mode."""
     if mode == "local":
         return LocalLLMWrapper(
             model_path=LLM_MODEL_PATH,
@@ -89,7 +84,6 @@ def _create_llm_instance(mode: str):
 
 
 def _get_orchestrator(mode: str) -> DialogOrchestrator:
-    """Get or create orchestrator instance for the specified mode."""
     if mode not in orchestrator_instances:
         llm = _create_llm_instance(mode)
         short_memory = ShortTermMemory(
@@ -117,12 +111,6 @@ def _get_orchestrator(mode: str) -> DialogOrchestrator:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Process user message and return Chino's response.
-    
-    Args:
-        request: Chat request with optional llm_mode ("local" or "openrouter") and memory_cache ("redis" or "in-memory")
-    """
-    
     llm_mode = request.llm_mode or LLM_MODE or "openrouter"
     
     if llm_mode not in ["local", "openrouter"]:
@@ -161,13 +149,6 @@ async def chat(request: ChatRequest):
 
 @router.get("/history", response_model=ConversationHistory)
 async def get_history(count: Optional[int] = None, llm_mode: Optional[str] = None):
-    """Get conversation history.
-    
-    Args:
-        count: Number of messages to retrieve
-        llm_mode: LLM mode to get history from ("local" or "openrouter")
-    """
-    
     mode = llm_mode or LLM_MODE or "openrouter"
     
     if mode not in orchestrator_instances:
@@ -189,12 +170,6 @@ async def get_history(count: Optional[int] = None, llm_mode: Optional[str] = Non
 
 @router.post("/clear")
 async def clear_conversation(llm_mode: Optional[str] = None):
-    """Clear conversation history.
-    
-    Args:
-        llm_mode: LLM mode to clear history from ("local" or "openrouter")
-    """
-    
     mode = llm_mode or LLM_MODE or "openrouter"
     
     if mode not in orchestrator_instances:
@@ -212,12 +187,6 @@ async def clear_conversation(llm_mode: Optional[str] = None):
 
 @router.get("/status")
 async def get_status(llm_mode: Optional[str] = None):
-    """Get dialog system status.
-    
-    Args:
-        llm_mode: LLM mode to get status from ("local" or "openrouter")
-    """
-    
     mode = llm_mode or LLM_MODE or "openrouter"
     
     if mode not in orchestrator_instances:
@@ -241,12 +210,6 @@ async def get_status(llm_mode: Optional[str] = None):
 
 @router.get("/memory_stats")
 async def get_memory_stats(llm_mode: Optional[str] = None):
-    """Get detailed memory statistics including token usage.
-    
-    Args:
-        llm_mode: LLM mode to get stats from ("local" or "openrouter")
-    """
-    
     mode = llm_mode or LLM_MODE or "openrouter"
     
     if mode not in orchestrator_instances:
