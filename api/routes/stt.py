@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 import numpy as np
 import soundfile as sf
 import librosa
-from modules.asr.transcriber import Transcriber
-from setting import (
+from src.modules.asr.transcriber import Transcriber
+from src.setting import (
     STT_MODEL_PATH,
     VAD_THRESHOLD,
     SILENCE_CHUNKS_NEEDED,
@@ -25,7 +25,6 @@ _transcriber_lock = threading.Lock()
 
 
 def get_transcriber() -> Transcriber:
-    """Get or create the transcriber instance (thread-safe singleton)."""
     global _transcriber
     if _transcriber is None:
         with _transcriber_lock:

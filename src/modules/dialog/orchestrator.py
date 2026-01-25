@@ -8,11 +8,11 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import time
 
-from modules.memory.short_term import ShortTermMemory
-from modules.memory.long_term import LongTermMemory
-from modules.memory.summarizer import ConversationSummarizer
-from modules.dialog.prompt_builder import PromptBuilder
-from modules.dialog.llm_wrapper import BaseLLMWrapper
+from src.modules.memory.short_term import ShortTermMemory
+from src.modules.memory.long_term import LongTermMemory
+from src.modules.memory.summarizer import ConversationSummarizer
+from src.modules.dialog.prompt_builder import PromptBuilder
+from src.modules.dialog.llm_wrapper import BaseLLMWrapper
 
 logger = logging.getLogger(__name__)
 

@@ -4,11 +4,11 @@ import sys
 from pathlib import Path
 
 if __package__ is None:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from modules.tts.rvc_converter import RvcConverter, RvcEnforceTerms2Request
 
-# after testing i realised that i have to train model again lol
+
 async def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 

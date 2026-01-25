@@ -24,7 +24,11 @@ env/
 .env.venv
 
 # Data & Persistence (Mount volumes)
-# Dialogue Core
+data/logs/
+data/memories/*.db
+data/recordings/
+
+# Dialogue Core (legacy)
 data/dialogue-core/chroma_db/
 data/dialogue-core/*.db
 data/dialogue-core/embeddings/

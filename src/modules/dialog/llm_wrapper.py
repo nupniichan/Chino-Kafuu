@@ -52,8 +52,8 @@ class BaseLLMWrapper:
         return self.parse_ndjson_response(response)
 
 
-from modules.dialog.llm.local import LocalLLMWrapper
-from modules.dialog.llm.openrouter import OpenRouterLLMWrapper
+from src.modules.dialog.llm.local import LocalLLMWrapper
+from src.modules.dialog.llm.openrouter import OpenRouterLLMWrapper
 
 LLMWrapper = LocalLLMWrapper
 

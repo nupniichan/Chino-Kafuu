@@ -3,9 +3,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
-from modules.memory.short_term import ShortTermMemory
-from modules.memory.long_term import LongTermMemory
-from setting import (
+from src.modules.memory.short_term import ShortTermMemory
+from src.modules.memory.long_term import LongTermMemory
+from src.setting import (
     SHORT_TERM_MEMORY_SIZE,
     MEMORY_CACHE,
     REDIS_HOST,

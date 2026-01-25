@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import os
 
-from setting import LONG_TERM_DB_PATH
+from src.setting import LONG_TERM_DB_PATH
 
 logger = logging.getLogger(__name__)
 

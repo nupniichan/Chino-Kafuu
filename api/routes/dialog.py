@@ -1,16 +1,13 @@
-"""
-Dialog API route: Exposes dialog system via REST API.
-"""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 
-from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
-from modules.dialog.orchestrator import DialogOrchestrator
-from modules.memory.short_term import ShortTermMemory
-from modules.memory.long_term import LongTermMemory
-from setting import (
+from src.modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
+from src.modules.dialog.orchestrator import DialogOrchestrator
+from src.modules.memory.short_term import ShortTermMemory
+from src.modules.memory.long_term import LongTermMemory
+from src.setting import (
     LLM_MODE,
     LLM_MODEL_PATH,
     LLM_N_CTX,

@@ -1,14 +1,10 @@
-"""
-Test dialog system: Test LLM integration with memory and auto-trigger.
-Run this to test the complete dialog flow.
-"""
 import asyncio
 import logging
 import sys
 import json
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
 from modules.dialog.orchestrator import DialogOrchestrator
@@ -44,7 +40,6 @@ logger = logging.getLogger(__name__)
 
 
 def create_llm_instance():
-    """Create LLM instance based on LLM_MODE configuration."""
     if LLM_MODE == "local":
         return LocalLLMWrapper(
             model_path=LLM_MODEL_PATH,
@@ -69,8 +64,6 @@ def create_llm_instance():
 
 
 async def test_dialog_flow():
-    """Test complete dialog flow with memory and LLM."""
-    
     try:
         logger.info("Initializing LLM wrapper...")
         llm = create_llm_instance()
@@ -129,7 +122,6 @@ async def test_dialog_flow():
         if history:
             logger.info("--- Start of Memory ---")
             for i, entry in enumerate(history):
-                # Pretty print the JSON content
                 logger.info(f"[{i+1}]:\n{json.dumps(entry, indent=2, ensure_ascii=False)}")
             logger.info("--- End of Memory ---")
         
@@ -167,8 +159,6 @@ async def test_dialog_flow():
 
 
 async def test_simple_generation():
-    """Test simple LLM generation without orchestrator."""
-    
     try:
         logger.info("Testing simple LLM generation...")
         

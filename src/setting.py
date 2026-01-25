@@ -54,3 +54,24 @@ CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE") or "0")
 # File upload limits
 MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB") or "0")
 ALLOWED_AUDIO_FORMATS: tuple = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+
+# RVC (Voice Conversion) settings
+RVC_BASE_URL: str = os.getenv("RVC_BASE_URL") or "http://127.0.0.1:6969/"
+RVC_VOICE_MODEL: str = os.getenv("RVC_VOICE_MODEL") or "Chino_Kafuu"
+RVC_INDEX_FILE: str = os.getenv("RVC_INDEX_FILE") or "added_Chino_Kafuu_v2.index"
+RVC_OUTPUT_DIR: str = os.getenv("RVC_OUTPUT_DIR") or os.path.join(DATA_ROOT, "recordings")
+
+# TTS settings
+TTS_VOICE: str = os.getenv("TTS_VOICE") or "ja-JP-NanamiNeural"
+TTS_SPEED: float = float(os.getenv("TTS_SPEED") or "0.0")
+RVC_PITCH: float = float(os.getenv("RVC_PITCH") or "0.0")
+RVC_SEARCH_FEATURE_RATIO: float = float(os.getenv("RVC_SEARCH_FEATURE_RATIO") or "0.75")
+RVC_VOLUME_ENVELOPE: float = float(os.getenv("RVC_VOLUME_ENVELOPE") or "1.0")
+RVC_PROTECT_VOICELESS: float = float(os.getenv("RVC_PROTECT_VOICELESS") or "0.5")
+RVC_SPLIT_AUDIO: bool = (os.getenv("RVC_SPLIT_AUDIO") or "False").lower() == "true"
+RVC_AUTOTUNE: bool = (os.getenv("RVC_AUTOTUNE") or "False").lower() == "true"
+RVC_AUTOTUNE_STRENGTH: float = float(os.getenv("RVC_AUTOTUNE_STRENGTH") or "1.0")
+RVC_PROPOSED_PITCH: bool = (os.getenv("RVC_PROPOSED_PITCH") or "False").lower() == "true"
+RVC_PROPOSED_PITCH_THRESHOLD: float = float(os.getenv("RVC_PROPOSED_PITCH_THRESHOLD") or "155.0")
+RVC_CLEAN_AUDIO: bool = (os.getenv("RVC_CLEAN_AUDIO") or "False").lower() == "true"
+RVC_CLEAN_STRENGTH: float = float(os.getenv("RVC_CLEAN_STRENGTH") or "0.5")

@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from modules.memory.token_counter import TokenCounter
+from src.modules.memory.token_counter import TokenCounter
 
 
 @dataclass(frozen=True, slots=True)

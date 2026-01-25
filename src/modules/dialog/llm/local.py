@@ -4,7 +4,7 @@ Local LLM wrapper: Handles GGUF model inference using llama-cpp-python.
 import logging
 from typing import List, Dict, Iterator, Optional
 
-from modules.dialog.llm_wrapper import BaseLLMWrapper
+from src.modules.dialog.llm_wrapper import BaseLLMWrapper
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ import logging
 import json
 from typing import List, Dict, Iterator, Optional
 
-from modules.dialog.llm_wrapper import BaseLLMWrapper
+from src.modules.dialog.llm_wrapper import BaseLLMWrapper
 
 logger = logging.getLogger(__name__)
 

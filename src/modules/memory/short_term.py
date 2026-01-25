@@ -9,8 +9,8 @@ import uuid
 import json
 import logging
 
-from modules.memory.cache.memory_cache import MemoryCache
-from modules.memory.cache.redis_storage import RedisMemoryStorage
+from src.modules.memory.cache.memory_cache import MemoryCache
+from src.modules.memory.cache.redis_storage import RedisMemoryStorage
 
 logger = logging.getLogger(__name__)
 

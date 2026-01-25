@@ -1,12 +1,9 @@
-"""
-Test memory cache: Test MemoryCache storage and ShortTermMemory with cache backend.
-"""
 import pytest
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from modules.memory.cache import MemoryCache
 from modules.memory.short_term import ShortTermMemory
@@ -14,10 +11,7 @@ from setting import SHORT_TERM_MEMORY_SIZE
 
 
 class TestMemoryCache:
-    """Test MemoryCache storage implementation."""
-    
     def test_add_message(self):
-        """Test adding messages to cache."""
         cache = MemoryCache()
         cache.add_message("test_key", "message1")
         cache.add_message("test_key", "message2")
@@ -28,7 +22,6 @@ class TestMemoryCache:
         assert messages[1] == "message2"
     
     def test_get_messages_all(self):
-        """Test retrieving all messages."""
         cache = MemoryCache()
         cache.add_message("test_key", "msg1")
         cache.add_message("test_key", "msg2")
@@ -38,7 +31,6 @@ class TestMemoryCache:
         assert len(messages) == 3
     
     def test_get_messages_range(self):
-        """Test retrieving message range."""
         cache = MemoryCache()
         for i in range(5):
             cache.add_message("test_key", f"msg{i}")
@@ -49,7 +41,6 @@ class TestMemoryCache:
         assert messages[2] == "msg3"
     
     def test_get_messages_negative_index(self):
-        """Test retrieving messages with negative index."""
         cache = MemoryCache()
         for i in range(5):
             cache.add_message("test_key", f"msg{i}")
@@ -60,7 +51,6 @@ class TestMemoryCache:
         assert messages[2] == "msg4"
     
     def test_trim(self):
-        """Test trimming messages."""
         cache = MemoryCache()
         for i in range(5):
             cache.add_message("test_key", f"msg{i}")
@@ -72,7 +62,6 @@ class TestMemoryCache:
         assert messages[2] == "msg3"
     
     def test_trim_negative_index(self):
-        """Test trimming with negative index."""
         cache = MemoryCache()
         for i in range(5):
             cache.add_message("test_key", f"msg{i}")
@@ -83,7 +72,6 @@ class TestMemoryCache:
         assert messages[0] == "msg2"
     
     def test_delete(self):
-        """Test deleting a key."""
         cache = MemoryCache()
         cache.add_message("test_key", "message")
         assert cache.exists("test_key") is True
@@ -93,7 +81,6 @@ class TestMemoryCache:
         assert len(cache.get_messages("test_key")) == 0
     
     def test_exists(self):
-        """Test checking key existence."""
         cache = MemoryCache()
         assert cache.exists("nonexistent") is False
         
@@ -101,7 +88,6 @@ class TestMemoryCache:
         assert cache.exists("test_key") is True
     
     def test_multiple_keys(self):
-        """Test multiple keys isolation."""
         cache = MemoryCache()
         cache.add_message("key1", "msg1")
         cache.add_message("key2", "msg2")
@@ -112,7 +98,6 @@ class TestMemoryCache:
         assert cache.get_messages("key2")[0] == "msg2"
     
     def test_clear_all(self):
-        """Test clearing all cache."""
         cache = MemoryCache()
         cache.add_message("key1", "msg1")
         cache.add_message("key2", "msg2")
@@ -123,16 +108,12 @@ class TestMemoryCache:
 
 
 class TestShortTermMemoryWithCache:
-    """Test ShortTermMemory with cache backend."""
-    
     def test_init_with_cache(self):
-        """Test initializing ShortTermMemory with cache backend."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         assert memory.storage is not None
         assert isinstance(memory.storage, MemoryCache)
     
     def test_add_user_message(self):
-        """Test adding user message."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -150,7 +131,6 @@ class TestShortTermMemoryWithCache:
         assert len(messages) == 1
     
     def test_add_chino_response(self):
-        """Test adding Chino response."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -169,7 +149,6 @@ class TestShortTermMemoryWithCache:
         assert len(messages) == 1
     
     def test_get_recent_messages(self):
-        """Test retrieving recent messages."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -184,7 +163,6 @@ class TestShortTermMemoryWithCache:
         assert len(recent) == 2
     
     def test_get_conversation_context(self):
-        """Test getting conversation context."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -203,7 +181,6 @@ class TestShortTermMemoryWithCache:
         assert context[1]["content"] == "Xin chào"
     
     def test_clear(self):
-        """Test clearing conversation."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -217,7 +194,6 @@ class TestShortTermMemoryWithCache:
         assert memory.current_session_id is None
     
     def test_start_new_session(self):
-        """Test starting new session."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         
         session_id1 = memory.start_new_session()
@@ -231,7 +207,6 @@ class TestShortTermMemoryWithCache:
         assert len(memory.get_recent_messages()) == 0
     
     def test_max_size_limit(self):
-        """Test max_size limit enforcement."""
         max_size = 3
         memory = ShortTermMemory(storage_type="cache", max_size=max_size)
         memory.start_new_session()
@@ -243,7 +218,6 @@ class TestShortTermMemoryWithCache:
         assert len(messages) <= max_size
     
     def test_buffer_property(self):
-        """Test buffer property compatibility."""
         memory = ShortTermMemory(storage_type="cache", max_size=10)
         memory.start_new_session()
         
@@ -257,4 +231,3 @@ class TestShortTermMemoryWithCache:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

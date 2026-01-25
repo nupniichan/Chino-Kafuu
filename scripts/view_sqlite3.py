@@ -1,13 +1,11 @@
 from pathlib import Path
 import sqlite3
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # project/
+BASE_DIR = Path(__file__).resolve().parents[1]
 
-# Database paths
 CONVERSATIONS_DB = BASE_DIR / "data" / "memories" / "conversations.db"
 
 def view_database(db_path, db_name):
-    """View tables and sample data from a database"""
     print(f"\n{'='*80}")
     print(f"DATABASE: {db_name}")
     print(f"Path: {db_path}")
