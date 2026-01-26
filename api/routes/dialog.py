@@ -5,8 +5,8 @@ import logging
 
 from src.modules.dialog.llm_wrapper import LocalLLMWrapper, OpenRouterLLMWrapper
 from src.modules.dialog.orchestrator import DialogOrchestrator
-from src.modules.memory.short_term import ShortTermMemory
 from src.modules.memory.long_term import LongTermMemory
+from api.routes.memory import get_short_memory
 from src.setting import (
     LLM_MODE,
     LLM_MODEL_PATH,
@@ -19,14 +19,9 @@ from src.setting import (
     OPENROUTER_MODEL,
     OPENROUTER_BASE_URL,
     OPENROUTER_TIMEOUT,
-    SHORT_TERM_MEMORY_SIZE,
     SHORT_TERM_TOKEN_LIMIT,
     MEMORY_IMPORTANCE_THRESHOLD,
     IDLE_TIMEOUT_SECONDS,
-    MEMORY_CACHE,
-    REDIS_HOST,
-    REDIS_PORT,
-    REDIS_DB
 )
 
 logger = logging.getLogger(__name__)
@@ -83,14 +78,7 @@ def _create_llm_instance(mode: str):
 def _get_orchestrator(mode: str) -> DialogOrchestrator:
     if mode not in orchestrator_instances:
         llm = _create_llm_instance(mode)
-        short_memory = ShortTermMemory(
-            max_size=SHORT_TERM_MEMORY_SIZE,
-            storage_type=MEMORY_CACHE,
-            redis_host=REDIS_HOST,
-            redis_port=REDIS_PORT,
-            redis_db=REDIS_DB
-        )
-        
+        short_memory = get_short_memory()
         long_memory = LongTermMemory()
         
         orchestrator_instances[mode] = DialogOrchestrator(

@@ -90,7 +90,7 @@ async def add_chino_response(entry: ResponseEntry):
 async def get_buffer():
     try:
         memory = get_short_memory()
-        buffer = memory.get_buffer()
+        buffer = memory.get_recent_messages()
         return {
             "success": True,
             "session_id": memory.current_session_id,
@@ -183,7 +183,7 @@ async def get_memory_stats():
         short_mem = get_short_memory()
         long_mem = get_long_memory()
         
-        buffer = short_mem.get_buffer()
+        buffer = short_mem.get_recent_messages()
         stats = long_mem.get_stats()
         
         return {
