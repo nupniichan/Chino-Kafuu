@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from api.routes import stt, base, dialog, tts, memory, system
+from api.routes import stt, base, dialog, memory, system
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +29,6 @@ def create_app() -> FastAPI:
     app.include_router(base.router)
     app.include_router(stt.router)
     app.include_router(dialog.router)
-    app.include_router(tts.router)
     app.include_router(memory.router)
     app.include_router(system.router)
 
@@ -51,11 +50,6 @@ def create_app() -> FastAPI:
                         "clear": "/dialog/clear",
                         "status": "/dialog/status",
                         "memory_stats": "/dialog/memory_stats"
-                    },
-                    "tts": {
-                        "synthesize": "/tts/synthesize",
-                        "synthesize_and_play": "/tts/synthesize-and-play",
-                        "status": "/tts/status"
                     },
                     "memory": {
                         "short_term": "/memory/short-term/*",
