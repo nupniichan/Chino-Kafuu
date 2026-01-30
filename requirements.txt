@@ -1,17 +1,38 @@
 fastapi==0.128.0
 uvicorn==0.40.0
 python-multipart==0.0.6
+pydantic>=2.0.0
+
+# Audio processing
 soundfile==0.12.1
 librosa==0.10.0
 numpy==1.24.3
+sounddevice>=0.4.6
+
+# Speech-to-Text (STT)
+faster-whisper>=1.0.0
+
+# ML / LLM
+torch>=2.0.0
 llama-cpp-python==0.2.85
 tiktoken==0.12.0
+
+# Memory & Storage
 redis==7.0.1
+
+# HTTP & API
 requests==2.31.0
-python-dotenv==1.0.0
 gradio-client==2.0.3
 
+# System utilities
+python-dotenv==1.0.0
+psutil>=5.9.0
+
+# Audio playback
 pygame==2.6.1
 #playsound==1.3.0
 #pydub==0.25.1
 #simpleaudio==1.0.4
+
+# Testing
+pytest>=7.0.0
