@@ -39,8 +39,31 @@ def get_transcriber() -> Transcriber:
     return _transcriber
 
 
-@router.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
+@router.post("/transcribe", summary="Transcribe audio to text")
+async def transcribe_audio(
+    file: UploadFile = File(
+        ...,
+        description=f"Audio file to transcribe. Supported formats: {', '.join(ALLOWED_AUDIO_FORMATS)}. Max size: {MAX_UPLOAD_SIZE_MB}MB",
+        title="Audio File"
+    )
+):
+    """
+    Transcribe an audio file to text using Speech-to-Text
+    
+    ## Parameters:
+    - **file**: Audio file to transcribe (required)
+    
+    ## File Requirements:
+    - **Formats**: {', '.join(ALLOWED_AUDIO_FORMATS)}
+    - **Max Size**: {MAX_UPLOAD_SIZE_MB}MB
+    - Audio will be resampled to {SAMPLE_RATE}Hz if needed
+    - Stereo audio will be converted to mono
+    
+    ## Returns:
+    - **success**: Boolean indicating success
+    - **filename**: Original filename
+    - **transcription**: Transcribed text
+    """
     try:
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_AUDIO_FORMATS:
@@ -88,8 +111,17 @@ async def transcribe_audio(file: UploadFile = File(...)):
         )
 
 
-@router.get("/status")
+@router.get("/status", summary="Get STT service status")
 async def get_stt_status():
+    """
+    Check the current status and configuration of the STT service
+    
+    ## Returns:
+    - **status**: Service status (ready/error)
+    - **model_path**: Path to the STT model
+    - **sample_rate**: Target sample rate for processing (Hz)
+    - **vad_threshold**: Voice Activity Detection threshold
+    """
     try:
         transcriber = get_transcriber()
         return {
