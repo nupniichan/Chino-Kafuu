@@ -2,7 +2,7 @@ import logging
 import psutil
 import os
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any
 
 from src.setting import (
@@ -22,14 +22,59 @@ router = APIRouter(prefix="/system", tags=["System"])
 
 
 class SystemInfo(BaseModel):
-    cpu_percent: float
-    memory_percent: float
-    disk_percent: float
-    pid: int
+    cpu_percent: float = Field(
+        ...,
+        description="CPU usage percentage",
+        title="CPU Usage (%)",
+        ge=0.0,
+        le=100.0
+    )
+    
+    memory_percent: float = Field(
+        ...,
+        description="Memory usage percentage",
+        title="Memory Usage (%)",
+        ge=0.0,
+        le=100.0
+    )
+    
+    disk_percent: float = Field(
+        ...,
+        description="Disk usage percentage",
+        title="Disk Usage (%)",
+        ge=0.0,
+        le=100.0
+    )
+    
+    pid: int = Field(
+        ...,
+        description="Process ID of the running application",
+        title="Process ID",
+        ge=1
+    )
 
 
-@router.get("/info")
+@router.get("/info", summary="Get system information")
 async def get_system_info() -> Dict[str, Any]:
+    """
+    Get comprehensive system and process resource information
+    
+    ## Returns:
+    - **system**: Overall system resources
+      - cpu_percent: System-wide CPU usage
+      - memory: Total, available memory and usage percentage
+      - disk: Total, free disk space and usage percentage
+    - **process**: Current process resources
+      - pid: Process ID
+      - cpu_percent: CPU usage by this process
+      - memory_mb: Memory used by this process in MB
+      - threads: Number of threads running
+    
+    ## Use Cases:
+    - Monitor system health
+    - Check resource availability
+    - Diagnose performance issues
+    """
     try:
         process = psutil.Process(os.getpid())
         
@@ -59,8 +104,31 @@ async def get_system_info() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-@router.get("/config")
+@router.get("/config", summary="Get application configuration")
 async def get_config() -> Dict[str, Any]:
+    """
+    Get current application configuration settings
+    
+    ## Returns:
+    - **api**: API server configuration
+      - host: Server host address
+      - port: Server port number
+    - **llm**: Language model configuration
+      - mode: LLM mode (local/openrouter)
+      - model_path: Path to model file
+    - **stt**: Speech-to-Text configuration
+      - model_path: Path to STT model
+    - **rvc**: RVC (Voice Conversion) configuration
+      - base_url: RVC server URL
+    - **memory**: Memory system configuration
+      - cache_type: Type of cache (redis/in-memory)
+      - redis: Redis connection details
+    
+    ## Use Cases:
+    - Verify configuration
+    - Debug connection issues
+    - Check model paths
+    """
     return {
         "api": {
             "host": API_HOST,
@@ -86,9 +154,44 @@ async def get_config() -> Dict[str, Any]:
     }
 
 
-@router.get("/health-detailed")
+@router.get("/health-detailed", summary="Comprehensive health check")
 async def health_check_detailed():
-    """Comprehensive health check for all system modules"""
+    """
+    Comprehensive health check for all system modules and resources
+    
+    ## Returns:
+    - **status**: Overall system status (healthy/degraded/error)
+    - **timestamp**: ISO timestamp of the health check
+    - **modules**: Status of each system module
+      - stt: Speech-to-Text module
+      - dialog: Dialog/LLM module
+      - tts: Text-to-Speech module
+      - memory: Memory systems (short/long-term)
+      - audio: Audio capture/playback
+    - **resources**: System resource status
+      - cpu: CPU usage and status
+      - memory: RAM usage and status
+      - disk: Disk usage and status
+    - **models**: Model file availability
+      - llm: Language model file status
+      - stt: STT model file status
+      - rvc: RVC configuration status
+    
+    ## Status Values:
+    - **healthy**: All systems operational
+    - **degraded**: Some non-critical issues detected
+    - **error**: Critical failures present
+    
+    ## Resource Status:
+    - **ok**: Usage below thresholds (CPU/Memory < 80%, Disk < 90%)
+    - **warning**: Usage above warning thresholds
+    
+    ## Use Cases:
+    - System monitoring dashboards
+    - Pre-deployment checks
+    - Troubleshooting module failures
+    - Resource capacity planning
+    """
     health_status = {
         "status": "healthy",
         "timestamp": None,
