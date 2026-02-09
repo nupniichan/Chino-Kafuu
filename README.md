@@ -46,8 +46,7 @@ The system is organized into several core modules that work together to provide 
 
 ### System Architecture Diagram
 
-<img width="2384" height="1082" alt="image" src="https://github.com/user-attachments/assets/fa61df48-d86d-41e0-8d37-9d241501438a" />
-
+<img width="2384" height="1081" alt="Cute Chino Kafuu drawio" src="https://github.com/user-attachments/assets/c18a7e85-44f4-4d6c-9d7a-9902a50e4e75" />
 
 The diagram above illustrates how the system components interact to process voice input and generate contextual responses. **Keep in mind that it might be changed.**
 
