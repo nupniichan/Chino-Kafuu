@@ -43,6 +43,7 @@ class DialogOrchestrator:
         
         self.last_interaction_time = time.time()
         self.is_processing = False
+        self._lock = asyncio.Lock()
         self.auto_trigger_task: Optional[asyncio.Task] = None
     
     
@@ -104,8 +105,9 @@ class DialogOrchestrator:
             
             logger.info(f"Compressed {message_count} messages to long-term (ID: {summary_id}, score: {importance_score:.2f})")
             
-            self.short_memory.clear()
-            logger.info("Short-term memory cleared after compression")
+            key = self.short_memory._get_session_key()
+            self.short_memory.storage.trim(key, message_count, -1)
+            logger.info(f"Trimmed {message_count} compressed messages from short-term memory")
             
         except Exception as e:
             logger.error(f"Failed to compress memory: {e}")
@@ -119,126 +121,132 @@ class DialogOrchestrator:
         interrupt: bool = False
     ) -> List[Dict[str, Any]]:
         """Process user input: retrieve memories → build prompt → generate → save."""
-        self.is_processing = True
-        self.last_interaction_time = time.time()
-        
-        try:
-            long_term_summaries = await self._retrieve_long_term_summaries()
+        async with self._lock:
+            self.is_processing = True
+            self.last_interaction_time = time.time()
             
-            self.short_memory.add_user_message(
-                message=user_message,
-                emotion=user_emotion,
-                lang=user_lang,
-                source=source,
-                interrupt=interrupt
-            )
-            logger.info(f"User message saved: {user_message[:50]}...")
-            
-            conversation_history = self.short_memory.get_conversation_context()
-            
-            messages = self.prompt_builder.build_prompt(
-                user_message=user_message,
-                conversation_history=conversation_history,
-                is_auto_trigger=False
-            )
-            
-            insert_position = 1
-            if long_term_summaries:
-                messages.insert(insert_position, {
-                    "role": "system",
-                    "content": long_term_summaries
-                })
-                insert_position += 1
-            
-            start_time = time.time()
-            response_sentences = self.llm.generate_and_parse(messages)
-            latency_ms = int((time.time() - start_time) * 1000)
-            
-            logger.info(f"LLM response generated: {len(response_sentences)} sentences in {latency_ms}ms")
-            
-            saved_responses = []
-            for idx, sentence in enumerate(response_sentences):
-                response_entry = self.short_memory.add_chino_response(
-                    text_spoken=sentence.get("text_spoken", ""),
-                    text_display=sentence.get("text_display", ""),
-                    lang="jp",
-                    emotion=sentence.get("emo", "normal"),
-                    action=sentence.get("act", "none"),
-                    intensity=sentence.get("intensity", 0.5),
-                    stream_index=idx,
-                    is_completed=(idx == len(response_sentences) - 1),
-                    latency_ms=latency_ms if idx == 0 else 0
+            try:
+                long_term_summaries = await self._retrieve_long_term_summaries()
+                
+                self.short_memory.add_user_message(
+                    message=user_message,
+                    emotion=user_emotion,
+                    lang=user_lang,
+                    source=source,
+                    interrupt=interrupt
                 )
-                saved_responses.append(response_entry)
-            
-            asyncio.create_task(self._check_and_compress_memory())
-            
-            self.log_memory_stats()
-            
-            return saved_responses
-            
-        except Exception as e:
-            logger.error(f"Error processing user message: {e}")
-            raise
-        finally:
-            self.is_processing = False
+                logger.info(f"User message saved: {user_message[:50]}...")
+                
+                conversation_history = self.short_memory.get_conversation_context()
+                
+                messages = self.prompt_builder.build_prompt(
+                    user_message=user_message,
+                    conversation_history=conversation_history,
+                    is_auto_trigger=False
+                )
+                
+                insert_position = 1
+                if long_term_summaries:
+                    messages.insert(insert_position, {
+                        "role": "system",
+                        "content": long_term_summaries
+                    })
+                    insert_position += 1
+                
+                start_time = time.time()
+                response_sentences = await asyncio.to_thread(
+                    self.llm.generate_and_parse, messages
+                )
+                latency_ms = int((time.time() - start_time) * 1000)
+                
+                logger.info(f"LLM response generated: {len(response_sentences)} sentences in {latency_ms}ms")
+                
+                saved_responses = []
+                for idx, sentence in enumerate(response_sentences):
+                    response_entry = self.short_memory.add_chino_response(
+                        text_spoken=sentence.get("text_spoken", ""),
+                        text_display=sentence.get("text_display", ""),
+                        lang="jp",
+                        emotion=sentence.get("emo", "normal"),
+                        action=sentence.get("act", "none"),
+                        intensity=sentence.get("intensity", 0.5),
+                        stream_index=idx,
+                        is_completed=(idx == len(response_sentences) - 1),
+                        latency_ms=latency_ms if idx == 0 else 0
+                    )
+                    saved_responses.append(response_entry)
+                
+                asyncio.create_task(self._check_and_compress_memory())
+                
+                self.log_memory_stats()
+                
+                return saved_responses
+                
+            except Exception as e:
+                logger.error(f"Error processing user message: {e}")
+                raise
+            finally:
+                self.is_processing = False
     
     async def auto_trigger_conversation(self) -> List[Dict[str, Any]]:
         """Auto-trigger conversation when idle timeout reached."""
-        if self.is_processing:
+        if self._lock.locked():
             logger.debug("Skipping auto-trigger: already processing")
             return []
         
-        self.is_processing = True
-        
-        try:
-            logger.info("Auto-trigger: Initiating conversation")
+        async with self._lock:
+            self.is_processing = True
             
-            long_term_summaries = await self._retrieve_long_term_summaries()
-            
-            conversation_history = self.short_memory.get_conversation_context()
-            
-            messages = self.prompt_builder.build_prompt(
-                user_message=None,
-                conversation_history=conversation_history,
-                is_auto_trigger=True
-            )
-            
-            if long_term_summaries:
-                messages.insert(1, {
-                    "role": "system",
-                    "content": long_term_summaries
-                })
-            
-            start_time = time.time()
-            response_sentences = self.llm.generate_and_parse(messages)
-            latency_ms = int((time.time() - start_time) * 1000)
-            
-            logger.info(f"Auto-trigger response: {len(response_sentences)} sentences in {latency_ms}ms")
-            
-            saved_responses = []
-            for idx, sentence in enumerate(response_sentences):
-                response_entry = self.short_memory.add_chino_response(
-                    text_spoken=sentence.get("text_spoken", ""),
-                    text_display=sentence.get("text_display", ""),
-                    lang="jp",
-                    emotion=sentence.get("emo", "normal"),
-                    action=sentence.get("act", "none"),
-                    intensity=sentence.get("intensity", 0.5),
-                    stream_index=idx,
-                    is_completed=(idx == len(response_sentences) - 1),
-                    latency_ms=latency_ms if idx == 0 else 0
+            try:
+                logger.info("Auto-trigger: Initiating conversation")
+                
+                long_term_summaries = await self._retrieve_long_term_summaries()
+                
+                conversation_history = self.short_memory.get_conversation_context()
+                
+                messages = self.prompt_builder.build_prompt(
+                    user_message=None,
+                    conversation_history=conversation_history,
+                    is_auto_trigger=True
                 )
-                saved_responses.append(response_entry)
-            
-            self.last_interaction_time = time.time()
-            return saved_responses
-            
-        except Exception as e:
-            logger.error(f"Error in auto-trigger: {e}")
-            return []
-        finally:
-            self.is_processing = False
+                
+                if long_term_summaries:
+                    messages.insert(1, {
+                        "role": "system",
+                        "content": long_term_summaries
+                    })
+                
+                start_time = time.time()
+                response_sentences = await asyncio.to_thread(
+                    self.llm.generate_and_parse, messages
+                )
+                latency_ms = int((time.time() - start_time) * 1000)
+                
+                logger.info(f"Auto-trigger response: {len(response_sentences)} sentences in {latency_ms}ms")
+                
+                saved_responses = []
+                for idx, sentence in enumerate(response_sentences):
+                    response_entry = self.short_memory.add_chino_response(
+                        text_spoken=sentence.get("text_spoken", ""),
+                        text_display=sentence.get("text_display", ""),
+                        lang="jp",
+                        emotion=sentence.get("emo", "normal"),
+                        action=sentence.get("act", "none"),
+                        intensity=sentence.get("intensity", 0.5),
+                        stream_index=idx,
+                        is_completed=(idx == len(response_sentences) - 1),
+                        latency_ms=latency_ms if idx == 0 else 0
+                    )
+                    saved_responses.append(response_entry)
+                
+                self.last_interaction_time = time.time()
+                return saved_responses
+                
+            except Exception as e:
+                logger.error(f"Error in auto-trigger: {e}")
+                return []
+            finally:
+                self.is_processing = False
     
     async def start_auto_trigger_loop(self):
         """Start background task for auto-trigger monitoring."""
@@ -301,12 +309,11 @@ class DialogOrchestrator:
         
         if self.long_memory:
             try:
-                recent_summaries = self.long_memory.get_recent_summaries(limit=5)
                 stats["long_term"] = {
-                    "recent_summaries": len(recent_summaries),
-                    "total_summaries": len(self.long_memory.get_recent_summaries(limit=1000))
+                    "recent_summaries": len(self.long_memory.get_recent_summaries(limit=5)),
+                    "total_summaries": self.long_memory.get_summary_count()
                 }
-            except:
+            except Exception:
                 stats["long_term"] = {"status": "error"}
         
         return stats

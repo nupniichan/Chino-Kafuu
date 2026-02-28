@@ -157,6 +157,20 @@ class LongTermMemory:
             logger.error(f"Failed to retrieve recent summaries: {e}")
             return []
     
+    def get_summary_count(self, min_importance: float = 0.0) -> int:
+        """Get total count of summaries without loading them."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM conversation_summaries WHERE importance_score >= ?",
+                    (min_importance,)
+                )
+                return cursor.fetchone()[0]
+        except Exception as e:
+            logger.error(f"Failed to count summaries: {e}")
+            return 0
+
     def get_high_importance_summaries(
         self,
         min_score: float = 0.8,

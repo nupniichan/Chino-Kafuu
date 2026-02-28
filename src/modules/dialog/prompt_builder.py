@@ -57,7 +57,7 @@ class PromptBuilder:
                     })
                 else:
                     messages.append({
-                        "role": "Chino",
+                        "role": "assistant",
                         "content": content
                     })
         

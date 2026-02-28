@@ -168,7 +168,7 @@ class ShortTermMemory:
                 })
             elif "chino-kafuu" in entry:
                 context.append({
-                    "role": "Chino", 
+                    "role": "assistant", 
                     "content": entry["chino-kafuu"]["message"]["text_display"],
                     "emotion": entry["chino-kafuu"]["tts"]["emotion"]
                 })
@@ -191,8 +191,8 @@ class ShortTermMemory:
     
     @staticmethod
     def _generate_session_id() -> str:
-        """Generate unique session ID with timestamp."""
-        return f"session_{int(datetime.now().timestamp())}"
+        """Generate unique session ID."""
+        return f"session_{uuid.uuid4().hex}"
     
     @property
     def buffer(self):

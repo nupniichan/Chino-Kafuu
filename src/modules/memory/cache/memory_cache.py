@@ -22,17 +22,22 @@ class MemoryCache:
             self._storage[key] = []
         self._storage[key].append(message)
     
+    def _resolve_range(self, length: int, start: int, end: int) -> tuple:
+        """Resolve Redis-style inclusive range to Python slice indices."""
+        if start < 0:
+            start = max(length + start, 0)
+        if end < 0:
+            end = length + end
+        return start, end + 1
+
     def get_messages(self, key: str, start: int = 0, end: int = -1) -> List[str]:
-        """Retrieve messages from cache."""
+        """Retrieve messages from cache (Redis LRANGE compatible)."""
         if key not in self._storage:
             return []
         
         messages = self._storage[key]
-        
-        if end == -1:
-            return messages[start:]
-        else:
-            return messages[start:end+1]
+        s, e = self._resolve_range(len(messages), start, end)
+        return messages[s:e]
     
     def trim(self, key: str, start: int, end: int) -> None:
         """Trim messages list to specified range."""
@@ -40,11 +45,8 @@ class MemoryCache:
             return
         
         messages = self._storage[key]
-        
-        if end == -1:
-            self._storage[key] = messages[start:]
-        else:
-            self._storage[key] = messages[start:end+1]
+        s, e = self._resolve_range(len(messages), start, end)
+        self._storage[key] = messages[s:e]
     
     def delete(self, key: str) -> None:
         """Delete a key from cache."""
