@@ -8,10 +8,10 @@ set LLM_FILENAME=Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
 :: I used fast-whisper for fatest reponse
 set WHISPER_BASE_URL=https://huggingface.co/Systran/faster-whisper-small/resolve/main
 
-set RVC_URL=https://huggingface.co/nupniichan/Chino-Kafuu/resolve/main/Chino%%20Kafuu_330e_14190s.pth?download=true
-set RVC_FILENAME=Chino_Kafuu.pth
-set RVC_INDEX_URL=https://huggingface.co/nupniichan/Chino-Kafuu/resolve/main/added_Chino%%20Kafuu_v2.index?download=true
-set RVC_INDEX_FILENAME=added_Chino_Kafuu_v2.index
+set RVC_PTH_URL=https://huggingface.co/nuponiichan/Chino-Kafuu/resolve/main/Chino-Kafuu.pth?download=true
+set RVC_PTH_FILENAME=Chino-Kafuu.pth
+set RVC_INDEX_URL=https://huggingface.co/nuponiichan/Chino-Kafuu/resolve/main/Chino-Kafuu.index?download=true
+set RVC_INDEX_FILENAME=Chino-Kafuu.index
 
 echo Welcome :D
 echo ----------------------------------------------------
@@ -35,7 +35,7 @@ call :DownloadFile "models\faster-whisper-small\vocabulary.txt" "%WHISPER_BASE_U
 
 echo.
 echo [4/4] Processing RVC Model...
-call :DownloadFile "models\rvc\%RVC_FILENAME%" "%RVC_URL%"
+call :DownloadFile "models\rvc\%RVC_PTH_FILENAME%" "%RVC_PTH_URL%"
 call :DownloadFile "models\rvc\%RVC_INDEX_FILENAME%" "%RVC_INDEX_URL%"
 
 echo.

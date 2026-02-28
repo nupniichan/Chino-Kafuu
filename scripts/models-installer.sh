@@ -6,10 +6,10 @@ LLM_FILENAME="Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 WHISPER_BASE_URL="https://huggingface.co/Systran/faster-whisper-small/resolve/main"
 WHISPER_FILES=("config.json" "model.bin" "tokenizer.json" "vocabulary.txt")
 
-RVC_URL="https://huggingface.co/nupniichan/Chino-Kafuu/resolve/main/Chino%20Kafuu_330e_14190s.pth?download=true"
-RVC_FILENAME="Chino_Kafuu.pth"
-RVC_INDEX_URL="https://huggingface.co/nupniichan/Chino-Kafuu/resolve/main/added_Chino%20Kafuu_v2.index?download=true"
-RVC_INDEX_FILENAME="added_Chino_Kafuu_v2.index"
+RVC_PTH_URL="https://huggingface.co/nuponiichan/Chino-Kafuu/resolve/main/Chino-Kafuu.pth?download=true"
+RVC_PTH_FILENAME="Chino-Kafuu.pth"
+RVC_INDEX_URL="https://huggingface.co/nuponiichan/Chino-Kafuu/resolve/main/Chino-Kafuu.index?download=true"
+RVC_INDEX_FILENAME="Chino-Kafuu.index"
 
 download_file() {
     local filepath=$1
@@ -49,7 +49,7 @@ done
 
 echo ""
 echo "[4/4] Processing RVC Model..."
-download_file "models/rvc/$RVC_FILENAME" "$RVC_URL"
+download_file "models/rvc/$RVC_FILENAME" "$RVC_PTH_URL"
 download_file "models/rvc/$RVC_INDEX_FILENAME" "$RVC_INDEX_URL"
 
 echo ""
