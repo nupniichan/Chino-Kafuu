@@ -13,6 +13,7 @@ from src.modules.memory.long_term import LongTermMemory
 from src.modules.memory.summarizer import ConversationSummarizer
 from src.modules.dialog.prompt_builder import PromptBuilder
 from src.modules.dialog.llm_wrapper import BaseLLMWrapper
+from src.modules.dialog.token_router import TokenRouter
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,8 @@ class DialogOrchestrator:
         long_term_memory: Optional[LongTermMemory] = None,
         idle_timeout: int = 30,
         token_limit: int = 8000,
-        importance_threshold: float = 0.8
+        importance_threshold: float = 0.8,
+        router_slots: int = 2
     ):
         """Initialize with LLM, all memory layers, and settings."""
         self.llm = llm_wrapper
@@ -36,6 +38,7 @@ class DialogOrchestrator:
         
         self.summarizer = ConversationSummarizer(llm_wrapper)
         self.prompt_builder = PromptBuilder()
+        self.token_router = TokenRouter(num_slots=router_slots)
         
         self.idle_timeout = idle_timeout
         self.token_limit = token_limit
@@ -161,8 +164,13 @@ class DialogOrchestrator:
                 
                 logger.info(f"LLM response generated: {len(response_sentences)} sentences in {latency_ms}ms")
                 
+                await self.token_router.route_sentences(response_sentences)
+                ordered_sentences = await self.token_router.process_all_sequential()
+                
+                logger.info(f"TokenRouter: {self.token_router.get_status()}")
+                
                 saved_responses = []
-                for idx, sentence in enumerate(response_sentences):
+                for idx, sentence in enumerate(ordered_sentences):
                     response_entry = self.short_memory.add_chino_response(
                         text_spoken=sentence.get("text_spoken", ""),
                         text_display=sentence.get("text_display", ""),
@@ -171,7 +179,7 @@ class DialogOrchestrator:
                         action=sentence.get("act", "none"),
                         intensity=sentence.get("intensity", 0.5),
                         stream_index=idx,
-                        is_completed=(idx == len(response_sentences) - 1),
+                        is_completed=(idx == len(ordered_sentences) - 1),
                         latency_ms=latency_ms if idx == 0 else 0
                     )
                     saved_responses.append(response_entry)
@@ -224,8 +232,11 @@ class DialogOrchestrator:
                 
                 logger.info(f"Auto-trigger response: {len(response_sentences)} sentences in {latency_ms}ms")
                 
+                await self.token_router.route_sentences(response_sentences)
+                ordered_sentences = await self.token_router.process_all_sequential()
+                
                 saved_responses = []
-                for idx, sentence in enumerate(response_sentences):
+                for idx, sentence in enumerate(ordered_sentences):
                     response_entry = self.short_memory.add_chino_response(
                         text_spoken=sentence.get("text_spoken", ""),
                         text_display=sentence.get("text_display", ""),
@@ -234,7 +245,7 @@ class DialogOrchestrator:
                         action=sentence.get("act", "none"),
                         intensity=sentence.get("intensity", 0.5),
                         stream_index=idx,
-                        is_completed=(idx == len(response_sentences) - 1),
+                        is_completed=(idx == len(ordered_sentences) - 1),
                         latency_ms=latency_ms if idx == 0 else 0
                     )
                     saved_responses.append(response_entry)
