@@ -92,13 +92,10 @@ class DialogOrchestrator:
             importance_score = self.summarizer.calculate_importance_score(messages, summary)
             
             message_count = len(messages)
-            session_id = self.short_memory.current_session_id or "default"
             
             summary_id = self.long_memory.add_summary(
-                session_id=session_id,
                 summary=summary,
                 original_messages=messages,
-                token_count=0,  # No longer tracking tokens
                 importance_score=importance_score,
                 metadata={
                     "compressed_at": int(time.time() * 1000),
@@ -108,8 +105,7 @@ class DialogOrchestrator:
             
             logger.info(f"Compressed {message_count} messages to long-term (ID: {summary_id}, score: {importance_score:.2f})")
             
-            key = self.short_memory._get_session_key()
-            self.short_memory.storage.trim(key, message_count, -1)
+            self.short_memory.storage.trim(self.short_memory.storage_key, message_count, -1)
             logger.info(f"Trimmed {message_count} compressed messages from short-term memory")
             
         except Exception as e:

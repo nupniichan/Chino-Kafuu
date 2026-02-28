@@ -181,7 +181,6 @@ async def get_buffer():
     
     ## Returns:
     - **success**: Boolean indicating success
-    - **session_id**: Current conversation session ID
     - **buffer_size**: Number of messages in buffer
     - **buffer**: List of all messages in chronological order
     """
@@ -190,7 +189,6 @@ async def get_buffer():
         buffer = memory.get_recent_messages()
         return {
             "success": True,
-            "session_id": memory.current_session_id,
             "buffer_size": len(buffer),
             "buffer": buffer
         }
@@ -217,32 +215,8 @@ async def clear_buffer():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/short-term/new-session", summary="Start a new conversation session")
-async def start_new_session():
-    """
-    Start a new conversation session with a fresh session ID
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **session_id**: The newly created session ID
-    """
-    try:
-        memory = get_short_memory()
-        session_id = memory.start_new_session()
-        return {"success": True, "session_id": session_id}
-    except Exception as e:
-        logger.error(f"Start new session error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/long-term/summaries", summary="Get long-term memory summaries")
 async def get_summaries(
-    session_id: Optional[str] = Query(
-        None,
-        description="Filter by specific session ID. If not provided, returns summaries from all sessions",
-        title="Session ID",
-        examples=["session_123", "user_abc_20250129"]
-    ),
     limit: int = Query(
         10,
         description="Maximum number of summaries to return",
@@ -262,7 +236,6 @@ async def get_summaries(
     Retrieve conversation summaries from long-term memory
     
     ## Parameters:
-    - **session_id**: Filter by session (optional, returns all if not specified)
     - **limit**: Maximum number of results (1-100)
     - **min_importance**: Minimum importance threshold (0.0-1.0)
     
@@ -273,8 +246,7 @@ async def get_summaries(
     """
     try:
         memory = get_long_memory()
-        summaries = memory.get_summaries(
-            session_id=session_id,
+        summaries = memory.get_recent_summaries(
             limit=limit,
             min_importance=min_importance
         )
@@ -365,7 +337,6 @@ async def get_memory_stats():
     
     ## Returns:
     - **short_term**: Statistics about short-term memory
-      - session_id: Current session ID
       - buffer_size: Number of messages in buffer
       - max_size: Maximum buffer capacity
       - storage_type: Type of storage backend used
@@ -383,7 +354,6 @@ async def get_memory_stats():
         
         return {
             "short_term": {
-                "session_id": short_mem.current_session_id,
                 "buffer_size": len(buffer),
                 "max_size": short_mem.max_size,
                 "storage_type": type(short_mem.storage).__name__

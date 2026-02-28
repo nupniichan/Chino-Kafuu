@@ -5,7 +5,6 @@
         "lang": "en",
 
         "context": {
-            "session_id": "random_timestamp",
             "source": "mic", // text or auto
             "interrupt": false // true or false
         },

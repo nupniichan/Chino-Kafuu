@@ -93,14 +93,6 @@ class ChatResponse(BaseModel):
         description="List of AI responses with metadata",
         title="Response List"
     )
-    
-    conversation_id: str = Field(
-        ...,
-        description="Unique identifier for this conversation session",
-        title="Conversation ID"
-    )
-
-
 class ConversationHistory(BaseModel):
     messages: List[Dict[str, Any]] = Field(
         ...,
@@ -203,12 +195,7 @@ async def chat(request: ChatRequest):
             source=request.source
         )
         
-        session_id = orchestrator.short_memory.current_session_id or "default"
-        
-        return ChatResponse(
-            responses=responses,
-            conversation_id=session_id
-        )
+        return ChatResponse(responses=responses)
         
     except Exception as e:
         logger.error(f"Chat error: {e}")

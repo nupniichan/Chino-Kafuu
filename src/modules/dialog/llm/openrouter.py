@@ -162,4 +162,3 @@ class OpenRouterLLMWrapper(BaseLLMWrapper):
         except Exception as e:
             logger.error(f"Streaming generation failed: {e}")
             raise
-

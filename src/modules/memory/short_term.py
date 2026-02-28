@@ -27,19 +27,8 @@ class ShortTermMemory:
         redis_db: int = 0,
         key_prefix: str = "chatbot:conversation"
     ):
-        """Initialize with storage backend and buffer settings.
-        
-        Args:
-            max_size: Maximum number of messages to keep
-            storage_type: Storage backend type ("redis", or "in-memory")
-            redis_host: Redis host (only used if storage_type="redis")
-            redis_port: Redis port (only used if storage_type="redis")
-            redis_db: Redis database (only used if storage_type="redis")
-            key_prefix: Prefix for storage keys
-        """
         self.max_size = max_size
-        self.key_prefix = key_prefix
-        self.current_session_id: Optional[str] = None
+        self.storage_key = f"{key_prefix}:main"
         self.storage: Union[MemoryCache, RedisMemoryStorage]
         
         if storage_type == "in-memory":
@@ -54,13 +43,8 @@ class ShortTermMemory:
             logger.info("Using RedisMemoryStorage backend")
         else:
             raise ValueError(
-                f"Invalid storage_type: {storage_type}. Must be 'redis', 'cache', or 'in-memory'"
+                f"Invalid storage_type: {storage_type}. Must be 'redis' or 'in-memory'"
             )
-    
-    def _get_session_key(self) -> str:
-        """Get storage key for current session."""
-        session_id = self.current_session_id or "default"
-        return f"{self.key_prefix}:{session_id}"
     
     def add_user_message(
         self, 
@@ -71,16 +55,12 @@ class ShortTermMemory:
         interrupt: bool = False
     ) -> Dict[str, Any]:
         """Add user message to conversation buffer."""
-        if not self.current_session_id:
-            self.start_new_session()
-        
         entry = {
             "user": {
                 "message": message,
                 "emotion": emotion,
                 "lang": lang,
                 "context": {
-                    "session_id": self.current_session_id,
                     "source": source,
                     "interrupt": interrupt
                 },
@@ -90,10 +70,9 @@ class ShortTermMemory:
             }
         }
         
-        key = self._get_session_key()
         message_json = json.dumps(entry, ensure_ascii=False)
-        self.storage.add_message(key, message_json)
-        self.storage.trim(key, -self.max_size, -1)
+        self.storage.add_message(self.storage_key, message_json)
+        self.storage.trim(self.storage_key, -self.max_size, -1)
         
         return entry
     
@@ -110,9 +89,6 @@ class ShortTermMemory:
         latency_ms: int = 0
     ) -> Dict[str, Any]:
         """Add assistant response to conversation buffer."""
-        if not self.current_session_id:
-            self.start_new_session()
-        
         entry = {
             "chino-kafuu": {
                 "response_id": str(uuid.uuid4()),
@@ -136,21 +112,18 @@ class ShortTermMemory:
             }
         }
         
-        key = self._get_session_key()
         message_json = json.dumps(entry, ensure_ascii=False)
-        self.storage.add_message(key, message_json)
-        self.storage.trim(key, -self.max_size, -1)
+        self.storage.add_message(self.storage_key, message_json)
+        self.storage.trim(self.storage_key, -self.max_size, -1)
         
         return entry
     
     def get_recent_messages(self, count: Optional[int] = None) -> List[Dict[str, Any]]:
         """Retrieve recent messages from storage buffer."""
-        key = self._get_session_key()
-        
         if count is None:
-            messages = self.storage.get_messages(key, 0, -1)
+            messages = self.storage.get_messages(self.storage_key, 0, -1)
         else:
-            messages = self.storage.get_messages(key, -count, -1)
+            messages = self.storage.get_messages(self.storage_key, -count, -1)
         
         return [json.loads(msg) for msg in messages]
     
@@ -177,22 +150,8 @@ class ShortTermMemory:
     
     def clear(self):
         """Clear all messages from buffer."""
-        if self.current_session_id:
-            key = self._get_session_key()
-            self.storage.delete(key)
-            logger.info(f"Cleared session: {self.current_session_id}")
-        self.current_session_id = None
-    
-    def start_new_session(self) -> str:
-        """Start a new conversation session."""
-        self.current_session_id = self._generate_session_id()
-        logger.info(f"Started new session: {self.current_session_id}")
-        return self.current_session_id
-    
-    @staticmethod
-    def _generate_session_id() -> str:
-        """Generate unique session ID."""
-        return f"session_{uuid.uuid4().hex}"
+        self.storage.delete(self.storage_key)
+        logger.info("Conversation buffer cleared")
     
     @property
     def buffer(self):

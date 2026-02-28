@@ -36,20 +36,13 @@ class LongTermMemory:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversation_summaries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT NOT NULL,
                         summary TEXT NOT NULL,
                         original_messages TEXT,
-                        token_count INTEGER,
                         message_count INTEGER,
                         importance_score REAL DEFAULT 0.5,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         metadata TEXT
                     )
-                """)
-                
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_session_id 
-                    ON conversation_summaries(session_id)
                 """)
                 
                 cursor.execute("""
@@ -66,10 +59,8 @@ class LongTermMemory:
     
     def add_summary(
         self,
-        session_id: str,
         summary: str,
         original_messages: List[Dict[str, Any]],
-        token_count: int,
         importance_score: float = 0.5,
         metadata: Optional[Dict[str, Any]] = None
     ) -> int:
@@ -80,14 +71,11 @@ class LongTermMemory:
                 
                 cursor.execute("""
                     INSERT INTO conversation_summaries 
-                    (session_id, summary, original_messages, token_count, 
-                     message_count, importance_score, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (summary, original_messages, message_count, importance_score, metadata)
+                    VALUES (?, ?, ?, ?, ?)
                 """, (
-                    session_id,
                     summary,
                     json.dumps(original_messages, ensure_ascii=False),
-                    token_count,
                     len(original_messages),
                     importance_score,
                     json.dumps(metadata or {}, ensure_ascii=False)
@@ -96,41 +84,12 @@ class LongTermMemory:
                 conn.commit()
                 summary_id = cursor.lastrowid
                 
-                logger.info(f"Saved summary {summary_id} for session {session_id}")
+                logger.info(f"Saved summary {summary_id}")
                 return summary_id
                 
         except Exception as e:
             logger.error(f"Failed to add summary: {e}")
             raise
-    
-    def get_session_summaries(
-        self,
-        session_id: str,
-        limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
-        """Retrieve summaries for specific session."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                query = """
-                    SELECT * FROM conversation_summaries 
-                    WHERE session_id = ?
-                    ORDER BY created_at DESC
-                """
-                
-                if limit:
-                    query += f" LIMIT {limit}"
-                
-                cursor.execute(query, (session_id,))
-                rows = cursor.fetchall()
-                
-                return [dict(row) for row in rows]
-                
-        except Exception as e:
-            logger.error(f"Failed to retrieve summaries: {e}")
-            return []
     
     def get_recent_summaries(
         self,
