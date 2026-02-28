@@ -12,6 +12,8 @@ Inspired by Neuro-sama<br><br>
 
 Chino Kafuu is a system designed for interactive voice conversations. It combines speech recognition, natural language understanding, memory management, and text-to-speech synthesis to create engaging interactions. The platform can be adapted for various applications including virtual assistants, chatbots, VTuber systems, customer service bots, and other interactive entertainment applications.
 
+## Note
+I will pause this project a little bit because my eitheir my GPU and resources can't handle this 💀
 ## Features
 
 - **Speech-to-Text**: Real-time audio transcription using Faster-Whisper models
