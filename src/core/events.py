@@ -1,6 +1,3 @@
-"""
-Event type constants and payload dataclasses for the EventBus system.
-"""
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -51,5 +48,6 @@ class InterruptPayload:
 
 @dataclass
 class MemoryFullPayload:
+    token_count: int = 0
     message_count: int = 0
-    threshold: int = 50
+    threshold: int = 8192

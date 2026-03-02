@@ -1,17 +1,3 @@
-"""
-Real-time Pipeline: Continuous audio capture -> VAD -> STT -> EventBus.
-
-Runs as a background asyncio task alongside the FastAPI server.
-This is the "Neuro-sama mode": always listening, always ready.
-
-Audio flow:
-  AudioCapture callback (sounddevice thread)
-      -> queue.put_nowait(chunk_bytes)
-  Pipeline._loop (asyncio)
-      -> chunk = await queue.get()
-      -> Transcriber.process(chunk)
-      -> if text -> publish STT_READY
-"""
 import asyncio
 import logging
 import queue as thread_queue

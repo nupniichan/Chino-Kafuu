@@ -1,8 +1,3 @@
-"""
-Short-term memory: Conversation buffer storage with multiple backend support.
-Stores recent messages following the expected JSON format.
-Supports Redis and in-memory cache backends.
-"""
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 import uuid

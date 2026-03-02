@@ -1,7 +1,3 @@
-"""
-Token counter: Estimate token count for memory management.
-Uses tiktoken for accurate token counting.
-"""
 import logging
 from typing import List, Dict, Any
 

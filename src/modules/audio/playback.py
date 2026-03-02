@@ -1,8 +1,3 @@
-"""
-Audio playback module for playing synthesized audio files.
-Supports both synchronous and asynchronous playback.
-"""
-
 import logging
 import asyncio
 import os

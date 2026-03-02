@@ -1,13 +1,3 @@
-"""
-Dialog Engine: Event-driven conversation processor.
-
-Subscribes to STT_READY from EventBus, runs the pipeline
-(Get Memory -> Build Prompt -> LLM -> Process Response),
-and publishes LLM_RESPONSE back to EventBus.
-
-Memory saves are handled by MemoryManager (also via EventBus).
-TokenRouter subscribes to LLM_RESPONSE independently.
-"""
 import logging
 import asyncio
 import time

@@ -1,6 +1,3 @@
-"""
-LLM wrapper: Base class for LLM wrappers with shared parsing logic.
-"""
 import logging
 from typing import List, Dict, Any, Optional
 import json

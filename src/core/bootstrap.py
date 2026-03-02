@@ -1,9 +1,4 @@
-"""
-Bootstrap: Centralized service registry and lifecycle management.
-
-Creates all module instances, wires EventBus subscriptions,
-and provides get_service() for API routes. Replaces scattered singletons.
-"""
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -33,6 +28,7 @@ from src.setting import (
     VAD_THRESHOLD,
     SILENCE_CHUNKS_NEEDED,
     SAMPLE_RATE,
+    RVC_BASE_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,7 +95,7 @@ class ServiceRegistry:
             short_term=short_term,
             long_term=long_term,
             summarizer=summarizer,
-            compress_threshold=50,
+            compress_threshold=SHORT_TERM_TOKEN_LIMIT,
         )
         memory_manager.register()
         self._services["memory_manager"] = memory_manager
@@ -122,7 +118,8 @@ class ServiceRegistry:
     def _init_token_router(self, bus: EventBus) -> None:
         from src.modules.dialog.token_router import TokenRouter
 
-        router = TokenRouter(num_slots=2)
+        processor = self._create_tts_processor()
+        router = TokenRouter(num_slots=2, processor=processor)
         bus.subscribe(
             events.LLM_RESPONSE,
             self._make_token_router_handler(router),
@@ -134,6 +131,29 @@ class ServiceRegistry:
             owner="TokenRouter",
         )
         self._services["token_router"] = router
+
+    def _create_tts_processor(self):
+        try:
+            from src.modules.asr.tts import TTS
+            tts = TTS(server_url=RVC_BASE_URL)
+            logger.info("TTS/RVC pipeline connected")
+
+            async def _synthesize(sentence) -> None:
+                text = sentence.data.get("text_spoken", "")
+                if not text:
+                    return
+                try:
+                    result = await asyncio.to_thread(tts.synthesize, text)
+                    sentence.data["audio_path"] = result
+                    logger.debug(f"TTS synthesized sentence #{sentence.index}")
+                except Exception as e:
+                    logger.error(f"TTS failed for sentence #{sentence.index}: {e}")
+
+            self._services["tts"] = tts
+            return _synthesize
+        except Exception as e:
+            logger.warning(f"TTS/RVC not available: {e}. Audio synthesis disabled.")
+            return None
 
     @staticmethod
     def _make_token_router_handler(router):

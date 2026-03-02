@@ -1,9 +1,3 @@
-"""
-Memory Manager: Event-driven facade over ShortTerm, LongTerm, and Summarizer.
-
-Subscribes to EventBus for automatic save. Exposes direct-call query methods
-for Dialog Engine (which needs return values).
-"""
 import asyncio
 import logging
 import time
@@ -14,6 +8,7 @@ from src.core import events
 from src.modules.memory.short_term import ShortTermMemory
 from src.modules.memory.long_term import LongTermMemory
 from src.modules.memory.summarizer import ConversationSummarizer
+from src.modules.memory.token_counter import TokenCounter
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +20,14 @@ class MemoryManager:
         short_term: ShortTermMemory,
         long_term: Optional[LongTermMemory] = None,
         summarizer: Optional[ConversationSummarizer] = None,
-        compress_threshold: int = 50,
+        compress_threshold: int = 8192,
     ):
         self.bus = event_bus
         self.short_term = short_term
         self.long_term = long_term
         self.summarizer = summarizer
         self.compress_threshold = compress_threshold
+        self.token_counter = TokenCounter()
         self._lock = asyncio.Lock()
 
     def register(self) -> None:
@@ -75,10 +71,11 @@ class MemoryManager:
 
     async def _check_and_compress(self) -> None:
         messages = self.short_term.get_recent_messages()
-        if len(messages) < self.compress_threshold:
+        token_count = self.token_counter.count_messages_tokens(messages)
+        if token_count < self.compress_threshold:
             return
 
-        logger.info(f"Memory threshold reached ({len(messages)} >= {self.compress_threshold}), compressing")
+        logger.info(f"Token limit reached ({token_count} >= {self.compress_threshold}), compressing")
 
         if not self.long_term or not self.summarizer:
             logger.warning("Long-term memory or summarizer not available, skipping compression")
@@ -110,6 +107,7 @@ class MemoryManager:
                 await self.bus.publish(
                     events.MEMORY_FULL,
                     events.MemoryFullPayload(
+                        token_count=token_count,
                         message_count=len(messages),
                         threshold=self.compress_threshold,
                     ),

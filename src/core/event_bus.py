@@ -1,9 +1,3 @@
-"""
-Async EventBus: Central communication backbone for the Chino Kafuu AI system.
-
-Lightweight pub/sub built on asyncio. Supports priority handlers (for interrupts),
-wildcard subscribers (for logging/debug), and concurrent handler execution.
-"""
 import asyncio
 import logging
 from typing import Any, Callable, Coroutine, Dict, List, Optional

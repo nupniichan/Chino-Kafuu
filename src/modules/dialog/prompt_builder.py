@@ -1,7 +1,3 @@
-"""
-Prompt builder: Constructs system and user prompts with memory context.
-Builds prompts based on conversation history and character rules.
-"""
 from pathlib import Path
 from typing import List, Dict, Optional
 

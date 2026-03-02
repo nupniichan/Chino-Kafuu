@@ -1,7 +1,3 @@
-"""
-Long-term memory: SQLite-based session storage with summarized conversations.
-Stores conversation summaries when short-term memory exceeds token limit.
-"""
 import logging
 import sqlite3
 import json

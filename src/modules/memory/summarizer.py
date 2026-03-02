@@ -1,7 +1,3 @@
-"""
-Summarizer: Compresses conversation history using small LLM.
-Used when short-term memory exceeds token limit.
-"""
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional

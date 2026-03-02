@@ -1,18 +1,7 @@
-"""
-Token Router: Manages sentence ordering and FIFO routing for LLM responses.
-
-Pipeline: LLM Response → Process Response → TokenRouter → [Stream/TTS/RVC] → Build Final
-
-The router ensures sentences are:
-1. Labeled with indices to prevent misordering
-2. Queued in FIFO order per slot for parallel processing
-3. Tracked for completion status
-4. Returned in correct order when all processing is done
-"""
 import asyncio
 import logging
 import uuid
-from typing import Dict, Any, List, Optional, AsyncIterator
+from typing import Dict, Any, List, Optional, AsyncIterator, Callable, Awaitable
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -101,8 +90,9 @@ class TokenRouter:
             # stream tokens for this sentence
     """
 
-    def __init__(self, num_slots: int = 2):
+    def __init__(self, num_slots: int = 2, processor: Optional[Callable[..., Awaitable[None]]] = None):
         self.num_slots = num_slots
+        self.processor = processor
         self._slots: List[SentenceFIFO] = [SentenceFIFO(i) for i in range(num_slots)]
         self._completed: Dict[int, LabeledSentence] = {}
         self._all_sentences: Dict[int, LabeledSentence] = {}
@@ -226,15 +216,17 @@ class TokenRouter:
 
     async def process_all_sequential(self) -> List[Dict[str, Any]]:
         """
-        Process all sentences across all slots sequentially (non-streaming).
-        Marks each sentence as completed and returns the ordered response.
-        Used as a simple pass-through before streaming is integrated.
+        Process all sentences across all slots sequentially.
+        Calls processor (TTS/RVC) for each sentence if available,
+        then marks as completed and returns ordered response.
         """
         for slot_id in range(self.num_slots):
             while True:
                 sentence = await self.get_next(slot_id)
                 if sentence is None:
                     break
+                if self.processor:
+                    await self.processor(sentence)
                 self.mark_completed(sentence.index)
 
         return self.build_ordered_response()
