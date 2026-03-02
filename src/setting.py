@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # FastAPI settings
-API_HOST: str = "127.0.0.1"
+API_HOST: str = "0.0.0.0"
 API_PORT: int = 8000
 API_RELOAD: bool = True
 
@@ -46,6 +46,10 @@ REDIS_DB: int = 0
 # VAD (Voice Activity Detection) settings
 VAD_THRESHOLD: float = 0.5
 SILENCE_CHUNKS_NEEDED: int = 5
+
+# Device settings
+DEVICE: str = "auto"  # "auto", "cuda", or "cpu" ( if you got a highend gpu then i highly recommend you to use "cuda")
+COMPUTE_TYPE: str = "auto"  # "auto", "float16", "int8", etc. ( if you got a highend gpu then i highly recommend you to use "float16")
 
 # Audio settings
 SAMPLE_RATE: int = 16000

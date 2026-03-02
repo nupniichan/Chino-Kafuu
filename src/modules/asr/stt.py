@@ -2,6 +2,8 @@ import logging
 import numpy as np
 from typing import Optional
 from faster_whisper import WhisperModel
+from src.utils.device import resolve_device, resolve_compute_type
+
 
 class STT:
     """
@@ -15,22 +17,13 @@ class STT:
     def __init__(
         self, 
         model_path: str = "models/faster-whisper-small", 
-        device: str = "cuda", 
-        compute_type: str = "float16"
+        device: str = "auto", 
+        compute_type: str = "auto"
     ) -> None:
-        """
-        Initialize the STT model.
-        
-        Args:
-            model_path: Path to the Faster-Whisper model directory
-            device: Device to run inference on ("cuda" or "cpu")
-            compute_type: Compute precision ("float16", "int8", etc.)
-        
-        Raises:
-            Exception: If model loading fails
-        """
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Loading Faster-Whisper model from: {model_path}")
+        device = resolve_device(device)
+        compute_type = resolve_compute_type(compute_type, device)
+        self.logger.info(f"Loading Faster-Whisper model from: {model_path} (device={device}, compute_type={compute_type})")
         try:
             self.model = WhisperModel(model_path, device=device, compute_type=compute_type)
             self.logger.info("Faster-Whisper model loaded successfully.")

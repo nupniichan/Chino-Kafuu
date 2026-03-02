@@ -10,6 +10,8 @@ import librosa
 from src.modules.asr.transcriber import Transcriber
 from src.setting import (
     STT_MODEL_PATH,
+    DEVICE,
+    COMPUTE_TYPE,
     VAD_THRESHOLD,
     SILENCE_CHUNKS_NEEDED,
     SAMPLE_RATE,
@@ -33,7 +35,9 @@ def get_transcriber() -> Transcriber:
                     vad_threshold=VAD_THRESHOLD,
                     stt_model_path=STT_MODEL_PATH,
                     sample_rate=SAMPLE_RATE,
-                    silence_chunks_needed=SILENCE_CHUNKS_NEEDED
+                    silence_chunks_needed=SILENCE_CHUNKS_NEEDED,
+                    device=DEVICE,
+                    compute_type=COMPUTE_TYPE,
                 )
                 logger.info("Transcriber initialized successfully")
     return _transcriber

@@ -15,11 +15,13 @@ class Transcriber:
         stt_model_path: str = "models/faster-whisper-small",
         sample_rate: int = 16000,
         silence_chunks_needed: int = 5,
+        device: str = "auto",
+        compute_type: str = "auto",
     ):
         self.logger = logging.getLogger(__name__)
         self.sample_rate = sample_rate
         self.vad = VAD(threshold=vad_threshold)
-        self.stt = STT(model_path=stt_model_path)
+        self.stt = STT(model_path=stt_model_path, device=device, compute_type=compute_type)
 
         self._speech_buffer: list[np.ndarray] = []
         self.is_speaking = False

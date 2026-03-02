@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Iterator, Optional
 
 from src.modules.dialog.llm_wrapper import BaseLLMWrapper
+from src.utils.device import resolve_gpu_layers
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,9 @@ class LocalLLMWrapper(BaseLLMWrapper):
         top_p: float = 0.9,
         max_tokens: int = 512
     ):
-        """Initialize LLM with model path and generation parameters."""
         self.model_path = model_path
         self.n_ctx = n_ctx
-        self.n_gpu_layers = n_gpu_layers
+        self.n_gpu_layers = resolve_gpu_layers(n_gpu_layers)
         self.temperature = temperature
         self.top_p = top_p
         self.max_tokens = max_tokens

@@ -9,6 +9,8 @@ from src.core.event_bus import EventBus, Priority
 from src.core import events
 from src.setting import (
     STT_MODEL_PATH,
+    DEVICE,
+    COMPUTE_TYPE,
     VAD_THRESHOLD,
     SILENCE_CHUNKS_NEEDED,
     SAMPLE_RATE,
@@ -45,6 +47,8 @@ class RealtimePipeline:
             stt_model_path=STT_MODEL_PATH,
             sample_rate=SAMPLE_RATE,
             silence_chunks_needed=SILENCE_CHUNKS_NEEDED,
+            device=DEVICE,
+            compute_type=COMPUTE_TYPE,
         )
         self._audio_capture = AudioCapture(
             on_chunk=self._on_audio_chunk,
