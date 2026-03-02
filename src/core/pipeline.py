@@ -22,9 +22,9 @@ CHUNK_SIZE = int(SAMPLE_RATE * CHUNK_DURATION_MS / 1000)
 
 class RealtimePipeline:
     """
-    Background loop: Mic -> Queue -> Transcriber -> EventBus.
+    Background loop: AudioCapture -> Queue -> Transcriber -> EventBus.
 
-    Uses a thread-safe queue to bridge the sounddevice callback thread
+    Uses AudioCapture to bridge the sounddevice callback thread
     to the asyncio event loop. Each audio chunk is processed exactly once.
     """
 
@@ -33,12 +33,12 @@ class RealtimePipeline:
         self._task: Optional[asyncio.Task] = None
         self._running = False
         self._chunk_queue: thread_queue.Queue = thread_queue.Queue(maxsize=300)
-
         self._audio_capture = None
         self._transcriber = None
 
     def _init_modules(self) -> None:
         from src.modules.asr.transcriber import Transcriber
+        from src.modules.audio.capture import AudioCapture
 
         self._transcriber = Transcriber(
             vad_threshold=VAD_THRESHOLD,
@@ -46,15 +46,17 @@ class RealtimePipeline:
             sample_rate=SAMPLE_RATE,
             silence_chunks_needed=SILENCE_CHUNKS_NEEDED,
         )
+        self._audio_capture = AudioCapture(
+            on_chunk=self._on_audio_chunk,
+            sample_rate=SAMPLE_RATE,
+            block_size=CHUNK_SIZE,
+        )
         logger.info("RealtimePipeline modules initialized")
 
-    def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status) -> None:
-        """Sounddevice callback -- runs in audio thread, puts bytes into queue."""
-        if status:
-            logger.warning(f"Audio stream status: {status}")
-        chunk_bytes = (indata.flatten() * 32768.0).astype(np.int16).tobytes()
+    def _on_audio_chunk(self, chunk: np.ndarray) -> None:
+        """Runs in audio thread — pushes float32 chunk into the async queue."""
         try:
-            self._chunk_queue.put_nowait(chunk_bytes)
+            self._chunk_queue.put_nowait(chunk)
         except thread_queue.Full:
             pass
 
@@ -68,9 +70,7 @@ class RealtimePipeline:
 
     async def _on_interrupt(self, event: str, data: events.InterruptPayload) -> None:
         if self._transcriber:
-            self._transcriber.audio_buffer.clear()
-            self._transcriber.is_speaking = False
-            self._transcriber.silence_chunks_counter = 0
+            self._transcriber.reset()
         while not self._chunk_queue.empty():
             try:
                 self._chunk_queue.get_nowait()
@@ -84,37 +84,24 @@ class RealtimePipeline:
             return
 
         self._init_modules()
-        self._start_audio_stream()
+        self._audio_capture.start()
         self._running = True
         self._task = asyncio.create_task(self._loop())
         logger.info("RealtimePipeline started")
-
-    def _start_audio_stream(self) -> None:
-        import sounddevice as sd
-
-        self._audio_stream = sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=1,
-            blocksize=CHUNK_SIZE,
-            callback=self._audio_callback,
-            dtype="float32",
-        )
-        self._audio_stream.start()
-        logger.info(f"Mic stream opened at {SAMPLE_RATE}Hz, chunk={CHUNK_SIZE} frames")
 
     async def _loop(self) -> None:
         loop = asyncio.get_event_loop()
 
         while self._running:
             try:
-                chunk_bytes = await loop.run_in_executor(
+                chunk = await loop.run_in_executor(
                     None, self._blocking_get_chunk
                 )
-                if chunk_bytes is None:
+                if chunk is None:
                     continue
 
                 transcription = await asyncio.to_thread(
-                    self._transcriber.process, chunk_bytes
+                    self._transcriber.process, chunk
                 )
 
                 if transcription and transcription.strip():
@@ -133,7 +120,7 @@ class RealtimePipeline:
                 logger.error(f"Pipeline loop error: {e}", exc_info=True)
                 await asyncio.sleep(0.5)
 
-    def _blocking_get_chunk(self) -> Optional[bytes]:
+    def _blocking_get_chunk(self) -> Optional[np.ndarray]:
         """Blocking get from thread-safe queue (runs in executor thread)."""
         try:
             return self._chunk_queue.get(timeout=0.2)
@@ -144,12 +131,8 @@ class RealtimePipeline:
         self._running = False
         if self._task and not self._task.done():
             self._task.cancel()
-        if hasattr(self, "_audio_stream") and self._audio_stream:
-            try:
-                self._audio_stream.stop()
-                self._audio_stream.close()
-            except Exception:
-                pass
+        if self._audio_capture:
+            self._audio_capture.stop()
         logger.info("RealtimePipeline stopped")
 
     @property
