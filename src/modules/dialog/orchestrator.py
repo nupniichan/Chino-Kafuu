@@ -1,346 +1,219 @@
 """
-Dialog orchestrator: Manages conversation flow with LLM, memory, and auto-trigger.
-Coordinates between user input, memory retrieval, prompt building, and LLM response.
+Dialog Engine: Event-driven conversation processor.
+
+Subscribes to STT_READY from EventBus, runs the pipeline
+(Get Memory -> Build Prompt -> LLM -> Process Response),
+and publishes LLM_RESPONSE back to EventBus.
+
+Memory saves are handled by MemoryManager (also via EventBus).
+TokenRouter subscribes to LLM_RESPONSE independently.
 """
 import logging
 import asyncio
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import time
+import uuid
+from typing import Optional, Dict, Any, List
 
-from src.modules.memory.short_term import ShortTermMemory
-from src.modules.memory.long_term import LongTermMemory
-from src.modules.memory.summarizer import ConversationSummarizer
+from src.core.event_bus import EventBus, Priority
+from src.core import events
+from src.modules.memory.memory_manager import MemoryManager
 from src.modules.dialog.prompt_builder import PromptBuilder
 from src.modules.dialog.llm_wrapper import BaseLLMWrapper
-from src.modules.dialog.token_router import TokenRouter
 
 logger = logging.getLogger(__name__)
 
 
 class DialogOrchestrator:
-    """Orchestrates dialog flow: memory → prompt → LLM → response → memory."""
-    
+    """Event-driven dialog engine: memory query -> prompt -> LLM -> publish response."""
+
     def __init__(
         self,
+        event_bus: EventBus,
         llm_wrapper: BaseLLMWrapper,
-        short_term_memory: Optional[ShortTermMemory] = None,
-        long_term_memory: Optional[LongTermMemory] = None,
+        memory_manager: MemoryManager,
         idle_timeout: int = 30,
-        token_limit: int = 8000,
-        importance_threshold: float = 0.8,
-        router_slots: int = 2
     ):
-        """Initialize with LLM, all memory layers, and settings."""
+        self.bus = event_bus
         self.llm = llm_wrapper
-        self.short_memory = short_term_memory or ShortTermMemory()
-        self.long_memory = long_term_memory
-        
-        self.summarizer = ConversationSummarizer(llm_wrapper)
+        self.memory = memory_manager
         self.prompt_builder = PromptBuilder()
-        self.token_router = TokenRouter(num_slots=router_slots)
-        
+
         self.idle_timeout = idle_timeout
-        self.token_limit = token_limit
-        self.importance_threshold = importance_threshold
-        
         self.last_interaction_time = time.time()
         self.is_processing = False
+        self._cancelled = False
         self._lock = asyncio.Lock()
         self.auto_trigger_task: Optional[asyncio.Task] = None
-    
-    
-    async def _retrieve_long_term_summaries(self) -> str:
-        """Retrieve recent long-term conversation summaries."""
-        if not self.long_memory:
-            return ""
-        
-        try:
-            summaries = self.long_memory.get_recent_summaries(limit=3)
-            
-            if summaries:
-                summary_text = "\n".join([
-                    f"- {s['summary']}" for s in summaries
-                ])
-                return f"Recent conversation summaries:\n{summary_text}"
-            
-        except Exception as e:
-            logger.error(f"Failed to retrieve long-term summaries: {e}")
-        
-        return ""
-    
-    async def _check_and_compress_memory(self):
-        """Check short-term memory size and compress if needed."""
-        recent_messages = self.short_memory.get_recent_messages()
-        message_count = len(recent_messages)
-        
-        logger.info(f"Memory Stats - Short-term: {message_count} messages")
-        
-        # Compress when message count reaches a threshold (e.g., 50 messages)
-        if message_count >= 50:
-            logger.info(f"Message limit reached ({message_count} messages), compressing memory")
-            await self._compress_to_long_term(recent_messages)
-    
-    async def _compress_to_long_term(self, messages: List[Dict[str, Any]]):
-        """Compress short-term to long-term memory via summarization."""
-        if not self.long_memory:
-            logger.warning("Long-term memory not initialized, skipping compression")
-            return
-        
-        try:
-            summary = self.summarizer.summarize_conversation(messages)
-            importance_score = self.summarizer.calculate_importance_score(messages, summary)
-            
-            message_count = len(messages)
-            
-            summary_id = self.long_memory.add_summary(
-                summary=summary,
-                original_messages=messages,
-                importance_score=importance_score,
-                metadata={
-                    "compressed_at": int(time.time() * 1000),
-                    "message_count": message_count
-                }
-            )
-            
-            logger.info(f"Compressed {message_count} messages to long-term (ID: {summary_id}, score: {importance_score:.2f})")
-            
-            self.short_memory.storage.trim(self.short_memory.storage_key, message_count, -1)
-            logger.info(f"Trimmed {message_count} compressed messages from short-term memory")
-            
-        except Exception as e:
-            logger.error(f"Failed to compress memory: {e}")
-    
+
+    def register(self) -> None:
+        self.bus.subscribe(
+            events.STT_READY, self._on_stt_ready, owner="DialogEngine"
+        )
+        self.bus.subscribe(
+            events.INTERRUPT, self._on_interrupt, priority=Priority.HIGH, owner="DialogEngine"
+        )
+        logger.info("DialogEngine registered on EventBus")
+
+    # ---- Event handlers ----
+
+    async def _on_stt_ready(self, event: str, data: events.STTReadyPayload) -> None:
+        await self.process_user_message(
+            user_message=data.text,
+            user_emotion=data.emotion,
+            user_lang=data.lang,
+            source=data.source,
+        )
+
+    async def _on_interrupt(self, event: str, data: events.InterruptPayload) -> None:
+        logger.info(f"DialogEngine received INTERRUPT: {data.reason}")
+        self._cancelled = True
+
+    # ---- Core pipeline ----
+
     async def process_user_message(
         self,
         user_message: str,
         user_emotion: str = "normal",
         user_lang: str = "en",
         source: str = "mic",
-        interrupt: bool = False
     ) -> List[Dict[str, Any]]:
-        """Process user input: retrieve memories → build prompt → generate → save."""
+        """Run pipeline: get memory -> build prompt -> LLM -> publish response."""
         async with self._lock:
             self.is_processing = True
+            self._cancelled = False
             self.last_interaction_time = time.time()
-            
+
             try:
-                long_term_summaries = await self._retrieve_long_term_summaries()
-                
-                self.short_memory.add_user_message(
-                    message=user_message,
-                    emotion=user_emotion,
-                    lang=user_lang,
-                    source=source,
-                    interrupt=interrupt
-                )
-                logger.info(f"User message saved: {user_message[:50]}...")
-                
-                conversation_history = self.short_memory.get_conversation_context()
-                
+                long_term_summaries = self.memory.get_recent_summaries(limit=3)
+                conversation_history = self.memory.get_conversation_context()
+
                 messages = self.prompt_builder.build_prompt(
                     user_message=user_message,
                     conversation_history=conversation_history,
-                    is_auto_trigger=False
+                    is_auto_trigger=False,
                 )
-                
-                insert_position = 1
+
                 if long_term_summaries:
-                    messages.insert(insert_position, {
-                        "role": "system",
-                        "content": long_term_summaries
-                    })
-                    insert_position += 1
-                
+                    messages.insert(1, {"role": "system", "content": long_term_summaries})
+
+                if self._cancelled:
+                    logger.info("DialogEngine cancelled before LLM call")
+                    return []
+
                 start_time = time.time()
                 response_sentences = await asyncio.to_thread(
                     self.llm.generate_and_parse, messages
                 )
                 latency_ms = int((time.time() - start_time) * 1000)
-                
-                logger.info(f"LLM response generated: {len(response_sentences)} sentences in {latency_ms}ms")
-                
-                await self.token_router.route_sentences(response_sentences)
-                ordered_sentences = await self.token_router.process_all_sequential()
-                
-                logger.info(f"TokenRouter: {self.token_router.get_status()}")
-                
-                saved_responses = []
-                for idx, sentence in enumerate(ordered_sentences):
-                    response_entry = self.short_memory.add_chino_response(
-                        text_spoken=sentence.get("text_spoken", ""),
-                        text_display=sentence.get("text_display", ""),
-                        lang="jp",
-                        emotion=sentence.get("emo", "normal"),
-                        action=sentence.get("act", "none"),
-                        intensity=sentence.get("intensity", 0.5),
-                        stream_index=idx,
-                        is_completed=(idx == len(ordered_sentences) - 1),
-                        latency_ms=latency_ms if idx == 0 else 0
-                    )
-                    saved_responses.append(response_entry)
-                
-                asyncio.create_task(self._check_and_compress_memory())
-                
-                self.log_memory_stats()
-                
-                return saved_responses
-                
+
+                if self._cancelled:
+                    logger.info("DialogEngine cancelled after LLM call")
+                    return []
+
+                logger.info(f"LLM response: {len(response_sentences)} sentences in {latency_ms}ms")
+
+                response_id = str(uuid.uuid4())
+                payload = events.LLMResponsePayload(
+                    sentences=response_sentences,
+                    response_id=response_id,
+                    latency_ms=latency_ms,
+                )
+                await self.bus.publish(events.LLM_RESPONSE, payload)
+
+                return response_sentences
+
             except Exception as e:
                 logger.error(f"Error processing user message: {e}")
                 raise
             finally:
                 self.is_processing = False
-    
+
     async def auto_trigger_conversation(self) -> List[Dict[str, Any]]:
-        """Auto-trigger conversation when idle timeout reached."""
+        """Generate conversation when idle (no user input for idle_timeout seconds)."""
         if self._lock.locked():
-            logger.debug("Skipping auto-trigger: already processing")
             return []
-        
+
         async with self._lock:
             self.is_processing = True
-            
+            self._cancelled = False
+
             try:
-                logger.info("Auto-trigger: Initiating conversation")
-                
-                long_term_summaries = await self._retrieve_long_term_summaries()
-                
-                conversation_history = self.short_memory.get_conversation_context()
-                
+                logger.info("Auto-trigger: initiating conversation")
+
+                long_term_summaries = self.memory.get_recent_summaries(limit=3)
+                conversation_history = self.memory.get_conversation_context()
+
                 messages = self.prompt_builder.build_prompt(
                     user_message=None,
                     conversation_history=conversation_history,
-                    is_auto_trigger=True
+                    is_auto_trigger=True,
                 )
-                
+
                 if long_term_summaries:
-                    messages.insert(1, {
-                        "role": "system",
-                        "content": long_term_summaries
-                    })
-                
+                    messages.insert(1, {"role": "system", "content": long_term_summaries})
+
                 start_time = time.time()
                 response_sentences = await asyncio.to_thread(
                     self.llm.generate_and_parse, messages
                 )
                 latency_ms = int((time.time() - start_time) * 1000)
-                
-                logger.info(f"Auto-trigger response: {len(response_sentences)} sentences in {latency_ms}ms")
-                
-                await self.token_router.route_sentences(response_sentences)
-                ordered_sentences = await self.token_router.process_all_sequential()
-                
-                saved_responses = []
-                for idx, sentence in enumerate(ordered_sentences):
-                    response_entry = self.short_memory.add_chino_response(
-                        text_spoken=sentence.get("text_spoken", ""),
-                        text_display=sentence.get("text_display", ""),
-                        lang="jp",
-                        emotion=sentence.get("emo", "normal"),
-                        action=sentence.get("act", "none"),
-                        intensity=sentence.get("intensity", 0.5),
-                        stream_index=idx,
-                        is_completed=(idx == len(ordered_sentences) - 1),
-                        latency_ms=latency_ms if idx == 0 else 0
-                    )
-                    saved_responses.append(response_entry)
-                
+
+                if self._cancelled:
+                    return []
+
+                payload = events.LLMResponsePayload(
+                    sentences=response_sentences,
+                    response_id=str(uuid.uuid4()),
+                    latency_ms=latency_ms,
+                    is_auto_trigger=True,
+                )
+                await self.bus.publish(events.LLM_RESPONSE, payload)
+
                 self.last_interaction_time = time.time()
-                return saved_responses
-                
+                return response_sentences
+
             except Exception as e:
                 logger.error(f"Error in auto-trigger: {e}")
                 return []
             finally:
                 self.is_processing = False
-    
-    async def start_auto_trigger_loop(self):
-        """Start background task for auto-trigger monitoring."""
+
+    async def start_auto_trigger_loop(self) -> None:
         logger.info(f"Starting auto-trigger loop (timeout: {self.idle_timeout}s)")
-        
         while True:
             try:
                 await asyncio.sleep(5)
-                
                 if self.is_processing:
                     continue
-                
                 idle_duration = time.time() - self.last_interaction_time
-                
                 if idle_duration >= self.idle_timeout:
-                    logger.debug(f"Idle for {idle_duration:.1f}s, triggering auto-conversation")
                     await self.auto_trigger_conversation()
-                
             except asyncio.CancelledError:
                 logger.info("Auto-trigger loop cancelled")
                 break
             except Exception as e:
                 logger.error(f"Error in auto-trigger loop: {e}")
                 await asyncio.sleep(5)
-    
-    def start_auto_trigger(self):
-        """Start auto-trigger in background."""
+
+    def start_auto_trigger(self) -> None:
         if self.auto_trigger_task is None or self.auto_trigger_task.done():
             self.auto_trigger_task = asyncio.create_task(self.start_auto_trigger_loop())
             logger.info("Auto-trigger task started")
-    
-    def stop_auto_trigger(self):
-        """Stop auto-trigger background task."""
+
+    def stop_auto_trigger(self) -> None:
         if self.auto_trigger_task and not self.auto_trigger_task.done():
             self.auto_trigger_task.cancel()
             logger.info("Auto-trigger task stopped")
-    
-    @property
-    def memory(self) -> ShortTermMemory:
-        """Get short-term memory instance (for API compatibility)."""
-        return self.short_memory
-    
+
+    # ---- API-compatible helpers ----
+
     def get_conversation_history(self, count: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Retrieve recent conversation from memory."""
-        return self.short_memory.get_recent_messages(count)
-    
-    def clear_conversation(self):
-        """Clear all conversation history."""
-        self.short_memory.clear()
+        return self.memory.get_recent_messages(count)
+
+    def clear_conversation(self) -> None:
+        self.memory.clear()
         self.last_interaction_time = time.time()
-        logger.info("Conversation history cleared")
-    
+        logger.info("Conversation cleared")
+
     def get_memory_stats(self) -> Dict[str, Any]:
-        """Get statistics about all memory layers."""
-        stats = {
-            "short_term": {
-                "messages": len(self.short_memory.buffer)
-            }
-        }
-        
-        if self.long_memory:
-            try:
-                stats["long_term"] = {
-                    "recent_summaries": len(self.long_memory.get_recent_summaries(limit=5)),
-                    "total_summaries": self.long_memory.get_summary_count()
-                }
-            except Exception:
-                stats["long_term"] = {"status": "error"}
-        
-        return stats
-    
-    def log_memory_stats(self, event_type: str = "message_processed"):
-        """Log detailed memory statistics including total tokens.
-        
-        Args:
-            event_type: Type of event triggering the log
-        """
-        stats = self.get_memory_stats()
-        short_term = stats.get("short_term", {})
-        
-        logger.info("\n" + "="*60)
-        logger.info("MEMORY STATISTICS")
-        logger.info("="*60)
-        logger.info(f"Short-term: {short_term.get('messages', 0)} messages, {short_term.get('tokens', 0)} tokens")
-        
-        if "long_term" in stats and "status" not in stats["long_term"]:
-            long_term = stats["long_term"]
-            logger.info(f"Long-term: {long_term.get('total_summaries', 0)} summaries (recent: {long_term.get('recent_summaries', 0)})")
-        
-        logger.info("="*60 + "\n")
+        return self.memory.get_stats()

@@ -174,6 +174,53 @@ class LongTermMemory:
             logger.error(f"Failed to update importance score: {e}")
             raise
     
+    def delete_summary(self, summary_id: int) -> bool:
+        """Delete a specific summary by ID. Returns True if deleted."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "DELETE FROM conversation_summaries WHERE id = ?",
+                    (summary_id,)
+                )
+                conn.commit()
+                deleted = cursor.rowcount > 0
+                if deleted:
+                    logger.info(f"Deleted summary {summary_id}")
+                return deleted
+        except Exception as e:
+            logger.error(f"Failed to delete summary {summary_id}: {e}")
+            raise
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about long-term memory storage."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        COALESCE(AVG(importance_score), 0) as avg_importance,
+                        COALESCE(SUM(message_count), 0) as total_messages,
+                        MIN(created_at) as oldest,
+                        MAX(created_at) as newest
+                    FROM conversation_summaries
+                """)
+                row = cursor.fetchone()
+
+                return {
+                    "total_summaries": row[0],
+                    "avg_importance": round(row[1], 3),
+                    "total_messages_summarized": row[2],
+                    "oldest_summary": row[3],
+                    "newest_summary": row[4],
+                    "db_path": self.db_path
+                }
+        except Exception as e:
+            logger.error(f"Failed to get stats: {e}")
+            return {"total_summaries": 0, "avg_importance": 0, "total_messages_summarized": 0}
+
     def clear_old_summaries(self, days: int = 30):
         """Clear summaries older than specified days."""
         try:

@@ -1,145 +1,47 @@
+"""
+Memory API routes: Thin wrappers using bootstrap services.
+"""
 import logging
 from fastapi import APIRouter, HTTPException, Query, Path
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
-from src.modules.memory.short_term import ShortTermMemory
-from src.modules.memory.long_term import LongTermMemory
-from src.setting import (
-    SHORT_TERM_MEMORY_SIZE,
-    MEMORY_CACHE,
-    REDIS_HOST,
-    REDIS_PORT,
-    REDIS_DB
-)
+from src.core.bootstrap import get_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/memory", tags=["Memory"])
 
-_short_memory = None
-_long_memory = None
-
-
-def get_short_memory() -> ShortTermMemory:
-    global _short_memory
-    if _short_memory is None:
-        _short_memory = ShortTermMemory(
-            max_size=SHORT_TERM_MEMORY_SIZE,
-            storage_type=MEMORY_CACHE,
-            redis_host=REDIS_HOST,
-            redis_port=REDIS_PORT,
-            redis_db=REDIS_DB
-        )
-        logger.info("Short-term memory initialized")
-    return _short_memory
-
-
-def get_long_memory() -> LongTermMemory:
-    global _long_memory
-    if _long_memory is None:
-        _long_memory = LongTermMemory()
-        logger.info("Long-term memory initialized")
-    return _long_memory
-
 
 class MessageEntry(BaseModel):
-    message: str = Field(
-        ...,
-        description="The user's message content",
-        title="Message",
-        min_length=1,
-        examples=["Hello!", "Em khoẻ hok?", "こんにちは"]
-    )
-    
-    emotion: str = Field(
-        default="normal",
-        description="Emotional state when the message was sent",
-        title="Emotion",
-        examples=["normal", "happy", "sad", "angry", "excited"]
-    )
-    
-    lang: str = Field(
-        default="en",
-        description="Language code of the message",
-        title="Language",
-        examples=["en", "vi", "ja"],
-        pattern="^[a-z]{2}$"
-    )
-    
-    source: str = Field(
-        default="api",
-        description="Source/origin of the message",
-        title="Message Source",
-        examples=["api", "voice", "text"]
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "message": "Hello! How are you today?",
-                "emotion": "happy",
-                "lang": "en",
-                "source": "api"
-            }
-        }
+    message: str = Field(..., min_length=1, examples=["Hello!"])
+    emotion: str = Field(default="normal", examples=["normal", "happy", "sad"])
+    lang: str = Field(default="en", pattern="^[a-z]{2}$")
+    source: str = Field(default="api", examples=["api", "voice", "text"])
 
 
 class ResponseEntry(BaseModel):
-    text: str = Field(
-        ...,
-        description="Chino's response text",
-        title="Response Text",
-        min_length=1,
-        examples=["Hello! I'm doing well, thank you!", "こんにちは！元気ですよ"]
-    )
-    
-    emotion: str = Field(
-        default="normal",
-        description="Emotional state in the response",
-        title="Emotion",
-        examples=["normal", "happy", "sad", "playful", "shy"]
-    )
-    
-    lang: str = Field(
-        default="en",
-        description="Language code of the response (ISO 639-1)",
-        title="Language",
-        examples=["en", "vi", "ja", "zh"],
-        pattern="^[a-z]{2}$"
-    )
+    text: str = Field(..., min_length=1)
+    emotion: str = Field(default="normal")
+    lang: str = Field(default="en", pattern="^[a-z]{2}$")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "I'm happy to help you!",
-                "emotion": "cheerful",
-                "lang": "en"
-            }
-        }
+
+def _get_memory_manager():
+    return get_service("memory_manager")
+
+
+def _get_long_term():
+    return get_service("long_term_memory")
 
 
 @router.post("/short-term/add-user", summary="Add user message to short-term memory")
 async def add_user_message(entry: MessageEntry):
-    """
-    Add a user message to the short-term memory buffer
-    
-    ## Parameters:
-    - **message**: The user's message text (required)
-    - **emotion**: Emotional state of the user
-    - **lang**: Language code (e.g., 'en', 'ja', 'vi')
-    - **source**: Where the message came from
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **entry**: The stored memory entry with metadata
-    """
     try:
-        memory = get_short_memory()
-        result = memory.add_user_message(
+        mm = _get_memory_manager()
+        result = mm.short_term.add_user_message(
             message=entry.message,
             emotion=entry.emotion,
             lang=entry.lang,
-            source=entry.source
+            source=entry.source,
         )
         return {"success": True, "entry": result}
     except Exception as e:
@@ -149,24 +51,13 @@ async def add_user_message(entry: MessageEntry):
 
 @router.post("/short-term/add-chino", summary="Add Chino's response to short-term memory")
 async def add_chino_response(entry: ResponseEntry):
-    """
-    Add Chino's response to the short-term memory buffer
-    
-    ## Parameters:
-    - **text**: Chino's response text (required)
-    - **emotion**: Emotional state in the response
-    - **lang**: Language code of the response
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **entry**: The stored memory entry with metadata
-    """
     try:
-        memory = get_short_memory()
-        result = memory.add_chino_response(
-            text=entry.text,
+        mm = _get_memory_manager()
+        result = mm.short_term.add_chino_response(
+            text_spoken=entry.text,
+            text_display=entry.text,
             emotion=entry.emotion,
-            lang=entry.lang
+            lang=entry.lang,
         )
         return {"success": True, "entry": result}
     except Exception as e:
@@ -176,22 +67,10 @@ async def add_chino_response(entry: ResponseEntry):
 
 @router.get("/short-term/buffer", summary="Get short-term memory buffer")
 async def get_buffer():
-    """
-    Retrieve all messages currently in the short-term memory buffer
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **buffer_size**: Number of messages in buffer
-    - **buffer**: List of all messages in chronological order
-    """
     try:
-        memory = get_short_memory()
-        buffer = memory.get_recent_messages()
-        return {
-            "success": True,
-            "buffer_size": len(buffer),
-            "buffer": buffer
-        }
+        mm = _get_memory_manager()
+        buffer = mm.get_recent_messages()
+        return {"success": True, "buffer_size": len(buffer), "buffer": buffer}
     except Exception as e:
         logger.error(f"Get buffer error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -199,16 +78,9 @@ async def get_buffer():
 
 @router.post("/short-term/clear", summary="Clear short-term memory buffer")
 async def clear_buffer():
-    """
-    Clear all messages from the short-term memory buffer
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **message**: Confirmation message
-    """
     try:
-        memory = get_short_memory()
-        memory.clear()
+        mm = _get_memory_manager()
+        mm.clear()
         return {"success": True, "message": "Buffer cleared"}
     except Exception as e:
         logger.error(f"Clear buffer error: {e}")
@@ -217,109 +89,34 @@ async def clear_buffer():
 
 @router.get("/long-term/summaries", summary="Get long-term memory summaries")
 async def get_summaries(
-    limit: int = Query(
-        10,
-        description="Maximum number of summaries to return",
-        title="Result Limit",
-        ge=1,
-        le=100
-    ),
-    min_importance: float = Query(
-        0.0,
-        description="Minimum importance score (0.0 to 1.0). Only summaries with importance >= this value will be returned",
-        title="Minimum Importance Score",
-        ge=0.0,
-        le=1.0
-    )
+    limit: int = Query(10, ge=1, le=100),
+    min_importance: float = Query(0.0, ge=0.0, le=1.0),
 ):
-    """
-    Retrieve conversation summaries from long-term memory
-    
-    ## Parameters:
-    - **limit**: Maximum number of results (1-100)
-    - **min_importance**: Minimum importance threshold (0.0-1.0)
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **count**: Number of summaries returned
-    - **summaries**: List of memory summaries with metadata
-    """
     try:
-        memory = get_long_memory()
-        summaries = memory.get_recent_summaries(
-            limit=limit,
-            min_importance=min_importance
-        )
-        return {
-            "success": True,
-            "count": len(summaries),
-            "summaries": summaries
-        }
+        ltm = _get_long_term()
+        summaries = ltm.get_recent_summaries(limit=limit, min_importance=min_importance)
+        return {"success": True, "count": len(summaries), "summaries": summaries}
     except Exception as e:
         logger.error(f"Get summaries error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/long-term/recent", summary="Get recent long-term memory summaries")
-async def get_recent_summaries(
-    count: int = Query(
-        5,
-        description="Number of most recent summaries to retrieve",
-        title="Summary Count",
-        ge=1,
-        le=50
-    )
-):
-    """
-    Get the most recent conversation summaries from long-term memory
-    
-    ## Parameters:
-    - **count**: Number of recent summaries to retrieve (1-50)
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **count**: Number of summaries returned
-    - **summaries**: List of recent summaries ordered by recency
-    """
+async def get_recent_summaries(count: int = Query(5, ge=1, le=50)):
     try:
-        memory = get_long_memory()
-        summaries = memory.get_recent_summaries(count)
-        return {
-            "success": True,
-            "count": len(summaries),
-            "summaries": summaries
-        }
+        ltm = _get_long_term()
+        summaries = ltm.get_recent_summaries(count)
+        return {"success": True, "count": len(summaries), "summaries": summaries}
     except Exception as e:
         logger.error(f"Get recent summaries error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/long-term/delete/{summary_id}", summary="Delete a memory summary")
-async def delete_summary(
-    summary_id: int = Path(
-        ...,
-        description="ID of the summary to delete",
-        title="Summary ID",
-        ge=1
-    )
-):
-    """
-    Delete a specific summary from long-term memory
-    
-    ## Parameters:
-    - **summary_id**: The ID of the summary to delete (required)
-    
-    ## Returns:
-    - **success**: Boolean indicating success
-    - **message**: Confirmation message
-    
-    ## Errors:
-    - 404: Summary not found
-    - 500: Server error
-    """
+async def delete_summary(summary_id: int = Path(..., ge=1)):
     try:
-        memory = get_long_memory()
-        success = memory.delete_summary(summary_id)
+        ltm = _get_long_term()
+        success = ltm.delete_summary(summary_id)
         if success:
             return {"success": True, "message": f"Summary {summary_id} deleted"}
         raise HTTPException(status_code=404, detail="Summary not found")
@@ -332,34 +129,9 @@ async def delete_summary(
 
 @router.get("/stats", summary="Get memory system statistics")
 async def get_memory_stats():
-    """
-    Get comprehensive statistics about both short-term and long-term memory
-    
-    ## Returns:
-    - **short_term**: Statistics about short-term memory
-      - buffer_size: Number of messages in buffer
-      - max_size: Maximum buffer capacity
-      - storage_type: Type of storage backend used
-    - **long_term**: Statistics about long-term memory
-      - Total summaries count
-      - Average importance scores
-      - Storage information
-    """
     try:
-        short_mem = get_short_memory()
-        long_mem = get_long_memory()
-        
-        buffer = short_mem.get_recent_messages()
-        stats = long_mem.get_stats()
-        
-        return {
-            "short_term": {
-                "buffer_size": len(buffer),
-                "max_size": short_mem.max_size,
-                "storage_type": type(short_mem.storage).__name__
-            },
-            "long_term": stats
-        }
+        mm = _get_memory_manager()
+        return mm.get_stats()
     except Exception as e:
         logger.error(f"Get memory stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
