@@ -21,6 +21,7 @@ class STTReadyPayload:
     lang: str = "en"
     source: str = "mic"
     emotion: str = "normal"
+    llm_mode: str = ""
 
 
 @dataclass

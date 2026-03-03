@@ -22,11 +22,14 @@ class DialogOrchestrator:
         llm_wrapper: BaseLLMWrapper,
         memory_manager: MemoryManager,
         idle_timeout: int = 30,
+        llm_factory=None,
     ):
         self.bus = event_bus
         self.llm = llm_wrapper
         self.memory = memory_manager
         self.prompt_builder = PromptBuilder()
+        self._llm_cache: Dict[str, BaseLLMWrapper] = {}
+        self._llm_factory = llm_factory
 
         self.idle_timeout = idle_timeout
         self.last_interaction_time = time.time()
@@ -34,6 +37,17 @@ class DialogOrchestrator:
         self._cancelled = False
         self._lock = asyncio.Lock()
         self.auto_trigger_task: Optional[asyncio.Task] = None
+
+    def _get_llm(self, mode: str = "") -> BaseLLMWrapper:
+        if not mode:
+            return self.llm
+        if mode not in self._llm_cache:
+            if self._llm_factory:
+                self._llm_cache[mode] = self._llm_factory(mode)
+                logger.info(f"Lazily created LLM instance for mode: {mode}")
+            else:
+                return self.llm
+        return self._llm_cache[mode]
 
     def register(self) -> None:
         self.bus.subscribe(
@@ -52,6 +66,7 @@ class DialogOrchestrator:
             user_emotion=data.emotion,
             user_lang=data.lang,
             source=data.source,
+            llm_mode=data.llm_mode,
         )
 
     async def _on_interrupt(self, event: str, data: events.InterruptPayload) -> None:
@@ -66,6 +81,7 @@ class DialogOrchestrator:
         user_emotion: str = "normal",
         user_lang: str = "en",
         source: str = "mic",
+        llm_mode: str = "",
     ) -> List[Dict[str, Any]]:
         """Run pipeline: get memory -> build prompt -> LLM -> publish response."""
         async with self._lock:
@@ -74,6 +90,8 @@ class DialogOrchestrator:
             self.last_interaction_time = time.time()
 
             try:
+                llm = self._get_llm(llm_mode)
+
                 long_term_summaries = self.memory.get_recent_summaries(limit=3)
                 conversation_history = self.memory.get_conversation_context()
 
@@ -92,7 +110,7 @@ class DialogOrchestrator:
 
                 start_time = time.time()
                 response_sentences = await asyncio.to_thread(
-                    self.llm.generate_and_parse, messages
+                    llm.generate_and_parse, messages
                 )
                 latency_ms = int((time.time() - start_time) * 1000)
 

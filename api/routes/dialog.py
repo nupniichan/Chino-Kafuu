@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from src.core.bootstrap import get_service
 from src.core import events
+from src.setting import LLM_MODE
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dialog", tags=["Dialog"])
@@ -20,6 +21,16 @@ class ChatRequest(BaseModel):
     emotion: str = Field(default="normal", examples=["normal", "happy", "sad"])
     lang: str = Field(default="en", pattern="^[a-z]{2}$", examples=["en", "vi", "ja"])
     source: str = Field(default="text", examples=["text", "voice", "api", "mic"])
+    memory_cache: Optional[str] = Field(
+        default=None,
+        description="Type of memory cache to use for conversation history",
+        examples=["redis", "in-memory"],
+    )
+    llm_mode: Optional[str] = Field(
+        default=None,
+        description="LLM provider mode. If not specified, uses default from settings",
+        examples=["local", "openrouter"],
+    )
 
 
 class ChatResponse(BaseModel):
@@ -40,7 +51,25 @@ async def chat(request: ChatRequest):
     -> Dialog Engine processes -> publish LLM_RESPONSE
     -> MemoryManager saves AI response -> TokenRouter routes
     -> captured response returned to caller.
+
+    Optional overrides:
+    - **memory_cache**: 'redis' or 'in-memory'
+    - **llm_mode**: 'local' or 'openrouter'
     """
+    llm_mode = request.llm_mode or LLM_MODE or "openrouter"
+
+    if llm_mode not in ("local", "openrouter"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid llm_mode: {llm_mode}. Must be 'local' or 'openrouter'",
+        )
+
+    if request.memory_cache and request.memory_cache not in ("redis", "in-memory"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid memory_cache: {request.memory_cache}. Must be 'redis' or 'in-memory'",
+        )
+
     try:
         bus = get_service("event_bus")
         response_holder: List[events.LLMResponsePayload] = []
@@ -56,6 +85,7 @@ async def chat(request: ChatRequest):
                 lang=request.lang,
                 source=request.source,
                 emotion=request.emotion,
+                llm_mode=llm_mode,
             )
             await bus.publish(events.STT_READY, payload)
 
@@ -65,6 +95,8 @@ async def chat(request: ChatRequest):
         finally:
             bus.unsubscribe(events.LLM_RESPONSE, _capture)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
@@ -77,12 +109,14 @@ async def chat_event(request: ChatRequest):
     Response is processed asynchronously via EventBus (for real-time/streaming mode).
     """
     try:
+        llm_mode = request.llm_mode or LLM_MODE or "openrouter"
         bus = get_service("event_bus")
         payload = events.STTReadyPayload(
             text=request.message,
             lang=request.lang,
             source=request.source,
             emotion=request.emotion,
+            llm_mode=llm_mode,
         )
         asyncio.create_task(bus.publish(events.STT_READY, payload))
         return {"status": "published", "message": "Processing asynchronously"}
@@ -94,6 +128,11 @@ async def chat_event(request: ChatRequest):
 @router.get("/history", response_model=ConversationHistory, summary="Get conversation history")
 async def get_history(
     count: Optional[int] = Query(None, ge=1, le=1000),
+    llm_mode: Optional[str] = Query(
+        None,
+        description="LLM mode to get history from",
+        examples=["local", "openrouter"],
+    ),
 ):
     try:
         engine = get_service("dialog_engine")
@@ -107,7 +146,13 @@ async def get_history(
 
 
 @router.post("/clear", summary="Clear conversation history")
-async def clear_conversation():
+async def clear_conversation(
+    llm_mode: Optional[str] = Query(
+        None,
+        description="LLM mode to clear conversation for",
+        examples=["local", "openrouter"],
+    ),
+):
     try:
         engine = get_service("dialog_engine")
         engine.clear_conversation()
@@ -120,7 +165,13 @@ async def clear_conversation():
 
 
 @router.get("/status", summary="Get dialog system status")
-async def get_status():
+async def get_status(
+    llm_mode: Optional[str] = Query(
+        None,
+        description="LLM mode to check status for",
+        examples=["local", "openrouter"],
+    ),
+):
     try:
         engine = get_service("dialog_engine")
         bus = get_service("event_bus")
@@ -151,7 +202,13 @@ async def interrupt():
 
 
 @router.get("/memory_stats", summary="Get memory statistics")
-async def get_memory_stats():
+async def get_memory_stats(
+    llm_mode: Optional[str] = Query(
+        None,
+        description="LLM mode to get memory stats for",
+        examples=["local", "openrouter"],
+    ),
+):
     try:
         engine = get_service("dialog_engine")
         return engine.get_memory_stats()

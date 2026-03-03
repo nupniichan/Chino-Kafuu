@@ -87,7 +87,7 @@ class ServiceRegistry:
         self._services["short_term_memory"] = short_term
         self._services["long_term_memory"] = long_term
 
-        llm_for_summary = self._create_llm("openrouter")
+        llm_for_summary = self._create_llm(LLM_MODE)
         summarizer = ConversationSummarizer(llm_for_summary)
 
         memory_manager = MemoryManager(
@@ -111,6 +111,7 @@ class ServiceRegistry:
             llm_wrapper=llm,
             memory_manager=memory_manager,
             idle_timeout=IDLE_TIMEOUT_SECONDS,
+            llm_factory=self._create_llm,
         )
         engine.register()
         self._services["dialog_engine"] = engine
