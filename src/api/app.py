@@ -1,3 +1,11 @@
+import sys
+import os
+
+# Ensure project root is in sys.path when running app.py directly
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -5,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.core.bootstrap import registry
-from api.routes import stt, base, dialog, memory, system, tts
+from src.api.routes import stt, base, dialog, memory, system, tts
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,3 +75,21 @@ def create_app() -> FastAPI:
         )
 
     return app
+
+
+if __name__ == "__main__":
+    import uvicorn
+    from src.setting import API_HOST, API_PORT, API_RELOAD
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger.info(f"Starting Chino Kafuu AI System API on {API_HOST}:{API_PORT}")
+    uvicorn.run(
+        "src.api.app:create_app",
+        host=API_HOST,
+        port=API_PORT,
+        reload=API_RELOAD,
+        factory=True,
+    )

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     logger.info(f"Starting Chino Kafuu AI System API on {API_HOST}:{API_PORT}")
     uvicorn.run(
-        "api.app:create_app",
+        "src.api.app:create_app",
         host=API_HOST,
         port=API_PORT,
         reload=API_RELOAD,
